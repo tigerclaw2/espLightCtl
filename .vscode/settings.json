@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "cmath": "cpp"
+    },
+    "cmake.sourceDirectory": "${workspaceFolder}/.pio/libdeps/esp12e/ArduinoJson"
+}
