@@ -806,7 +806,7 @@ void setup() {
     Serial.setTimeout(10000);
     Serial.println("[SYS] Starting...\n[SYS] Send 'd' in less then 3 sec to boot in UART download mode or 'w' to wipe SPIFFS partition.");
     TelnetPrint.println("[SYS] Starting...\n[SYS] Send 'd' in less then 3 sec to boot in UART download mode or 'w' to wipe SPIFFS partition.");
-    delay(3200);
+    delay(10);
     while (Serial.available() > 0) {
         switch (Serial.readStringUntil('\n').charAt(0)) {
         case 'd':
