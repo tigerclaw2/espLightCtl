@@ -265,7 +265,8 @@ void handleUpload(AsyncWebServerRequest *request, String filename, size_t index,
             tar.extract();
             file.close();
             TelnetPrint.println("untar ok");
-            SPIFFS.rmdir("/t/");
+            //SPIFFS.rmdir("/t/");
+            SPIFFS.remove("/t/"+ filename);
         }
         request->redirect("/up");
     }
@@ -330,84 +331,126 @@ void awrite(int mode=0) {
 }
 
 
-void wlconf() {
-    int wlmode;
-    wlconf_started=true;
-    if (WiFi.waitForConnectResult() != WL_CONNECTED) {
-        File jsnwlan = SPIFFS.open("/wlan.json","r");
-        TelnetPrint.println("open wlan.json");
-        StaticJsonDocument<320> doc;
-        DeserializationError error = deserializeJson(doc, jsnwlan);
-        if (error) {
-            Serial.print(F("[WLAN] JSON deserializeJson() failed: "));
-            TelnetPrint.print(F("[WLAN] JSON deserializeJson() failed: "));
-            Serial.println(error.f_str());
-            TelnetPrint.println(error.f_str());
-            wltimeout=10;
-            wlmode=1;
-        } else {
-            wlmode=doc["wlm"];
-            wltimeout=doc["t"]|10;
-        }
+// void wlconf2() {
+//     int wlmode;
+//     wlconf_started=true;
+//     if (WiFi.waitForConnectResult() != WL_CONNECTED) {
+//         File jsnwlan = SPIFFS.open("/wlan.json","r");
+//         TelnetPrint.println("open wlan.json");
+//         StaticJsonDocument<320> doc;
+//         DeserializationError error = deserializeJson(doc, jsnwlan);
+//         if (error) {
+//             Serial.print(F("[WLAN] JSON deserializeJson() failed: "));
+//             TelnetPrint.print(F("[WLAN] JSON deserializeJson() failed: "));
+//             Serial.println(error.f_str());
+//             TelnetPrint.println(error.f_str());
+//             wltimeout=10;
+//             wlmode=1;
+//         } else {
+//             wlmode=doc["wlm"];
+//             wltimeout=doc["t"]|10;
+//         }
 
-        switch (wlmode) {
-        case 1: {
-            Serial.println("[WLAN] Disabled");
-            TelnetPrint.println("[WLAN] Disabled");
-            WiFi.disconnect();
-            Serial.println("[WLAN] Started AP");
-            TelnetPrint.println("[WLAN] Started AP");
-            WiFi.setPhyMode(WIFI_PHY_MODE_11N);
+//         switch (wlmode) {
+//         case 1: {
+//             Serial.println("[WLAN] Disabled");
+//             TelnetPrint.println("[WLAN] Disabled");
+//             WiFi.disconnect();
+//             Serial.println("[WLAN] Started AP");
+//             TelnetPrint.println("[WLAN] Started AP");
+//             WiFi.setPhyMode(WIFI_PHY_MODE_11N);
+//             WiFi.mode(WIFI_AP);
+//             WiFi.softAP(doc["apssid"]|"esp_LightCtl", doc["appsk"]|"987654321");
+//             Serial.print("[WLAN] SSID=");
+//             TelnetPrint.print("[WLAN] SSID=");
+//             Serial.println("[WLAN] PSK=");
+//             TelnetPrint.println("[WLAN] PSK=");
+//             break;
+//         }
+//         case 2: {
+//             Serial.println("[WLAN] Disabled");
+//             TelnetPrint.println("[WLAN] Disabled");
+//             WiFi.disconnect();
+//             Serial.println("[WLAN] Started STA");
+//             TelnetPrint.println("[WLAN] Started STA");
+//             WiFi.setPhyMode(WIFI_PHY_MODE_11N);
+//             WiFi.mode(WIFI_STA);
+//             if(WiFi.SSID().c_str() != doc["ssid"] || WiFi.psk().c_str()!=doc["psk"]) {
+//                 WiFi.disconnect();
+//                 Serial.println("[WLAN] Connection details changed on disk. Updating...");
+//                 TelnetPrint.println("[WLAN] Connection details changed on disk. Updating...");
+//                 WiFi.begin(doc["ssid"], doc["psk"]|"");
+//             } else {
+//                 WiFi.begin();
+//             }
+//             Serial.println("[WLAN] Connecting to WiFi...");
+//             TelnetPrint.println("[WLAN] Connecting to WiFi...");
+//             wlconf_started=false;
+//             break;
+//         }
+//         case 3: {
+//             Serial.println("[WLAN] Disabled");
+//             TelnetPrint.println("[WLAN] Disabled");
+//             WiFi.disconnect();
+//             Serial.println("[WLAN] Started STA+AP");
+//             TelnetPrint.println("[WLAN] Started STA+AP");
+//             WiFi.setPhyMode(WIFI_PHY_MODE_11N);
+//             WiFi.mode(WIFI_AP_STA);
+//             WiFi.begin(doc["ssid"], doc["psk"]|"");
+//             WiFi.softAP(doc["apssid"] |"esp_LightCtl", doc["appsk"]|"987654321");
+//             Serial.print("[WLAN] SSID=");
+//             TelnetPrint.print("[WLAN] SSID=");
+//             Serial.println("[WLAN] PSK=");
+//             TelnetPrint.println("[WLAN] PSK=");
+//             break;
+//         }
+//         default:
+//             break;
+//         }
+//         jsnwlan.close();
+
+//     }
+// }
+
+void wlconf2() {
+    wlconf_started=true;
+    WiFi.persistent(0);
+    File jsnwlan = SPIFFS.open("/wlan.json","r");
+    StaticJsonDocument<320> doc;
+    DeserializationError error = deserializeJson(doc, jsnwlan);
+    if (error) {
+        Serial.print(F("[WLAN] JSON deserializeJson() failed: "));
+        TelnetPrint.print(F("[WLAN] JSON deserializeJson() failed: "));
+        Serial.println(error.f_str());
+        TelnetPrint.println(error.f_str());
+        WiFi.mode(WIFI_AP);
+        WiFi.softAP("esp_LightCtl", "987654321");
+    } else {
+        switch (doc["wlm"].as<int>()) {
+        case 1: {                               //ap mode
             WiFi.mode(WIFI_AP);
-            WiFi.softAP(doc["apssid"] |"esp_LightCtl", doc["appsk"]|"987654321");
-            Serial.print("[WLAN] SSID=");
-            TelnetPrint.print("[WLAN] SSID=");
-            Serial.println("[WLAN] PSK=");
-            TelnetPrint.println("[WLAN] PSK=");
+            WiFi.softAP(doc["apssid"]|"esp_LightCtl", doc["appsk"]|"987654321");
             break;
         }
-        case 2: {
-            Serial.println("[WLAN] Disabled");
-            TelnetPrint.println("[WLAN] Disabled");
-            WiFi.disconnect();
-            Serial.println("[WLAN] Started STA");
-            TelnetPrint.println("[WLAN] Started STA");
-            WiFi.setPhyMode(WIFI_PHY_MODE_11N);
-            WiFi.mode(WIFI_STA);
+        case 2: {                               //client mode
             if(WiFi.SSID().c_str() != doc["ssid"] || WiFi.psk().c_str()!=doc["psk"]) {
                 WiFi.disconnect();
-                Serial.println("[WLAN] Connection details changed on disk. Updating...");
-                TelnetPrint.println("[WLAN] Connection details changed on disk. Updating...");
+                WiFi.mode(WIFI_STA);
                 WiFi.begin(doc["ssid"], doc["psk"]|"");
-            } else {
-                WiFi.begin();
             }
-            Serial.println("[WLAN] Connecting to WiFi...");
-            TelnetPrint.println("[WLAN] Connecting to WiFi...");
-            wlconf_started=false;
             break;
         }
-        case 3: {
-            Serial.println("[WLAN] Disabled");
-            TelnetPrint.println("[WLAN] Disabled");
-            WiFi.disconnect();
-            Serial.println("[WLAN] Started STA+AP");
-            TelnetPrint.println("[WLAN] Started STA+AP");
-            WiFi.setPhyMode(WIFI_PHY_MODE_11N);
-            WiFi.mode(WIFI_AP_STA);
-            WiFi.begin(doc["ssid"], doc["psk"]|"");
-            WiFi.softAP(doc["apssid"] |"esp_LightCtl", doc["appsk"]|"987654321");
-            Serial.print("[WLAN] SSID=");
-            TelnetPrint.print("[WLAN] SSID=");
-            Serial.println("[WLAN] PSK=");
-            TelnetPrint.println("[WLAN] PSK=");
+        case 3: {                               //ap + client mode
+            if(WiFi.SSID().c_str() != doc["ssid"] || WiFi.psk().c_str()!=doc["psk"] || WiFi.softAPSSID().c_str() != doc["apssid"] || WiFi.softAPPSK().c_str() != doc["appsk"]) {
+                WiFi.disconnect();
+                WiFi.mode(WIFI_AP_STA);
+                WiFi.begin(doc["ssid"], doc["psk"]|"");
+                WiFi.softAP(doc["apssid"]|"esp_LightCtl", doc["appsk"]|"987654321");
+            }
             break;
         }
-        default:
-            break;
-        }
-        jsnwlan.close();
 
+        }
     }
 }
 
@@ -487,7 +530,7 @@ void startsrv() {
             doc["t"]=request->arg("t");
             serializeJson(doc, jsnw);
             jsnw.close();
-            wlconf();
+            wlconf2();
             request->send_P(200, "text/html", success_html);
         } else {
             request->send_P(500, "text/html", error_html);
@@ -802,11 +845,11 @@ void startsrv() {
 
 void setup() {
     Serial.begin(115200);
-    TelnetPrint.begin();
+
     Serial.setTimeout(10000);
-    Serial.println("[SYS] Starting...\n[SYS] Send 'd' in less then 3 sec to boot in UART download mode or 'w' to wipe SPIFFS partition.");
-    TelnetPrint.println("[SYS] Starting...\n[SYS] Send 'd' in less then 3 sec to boot in UART download mode or 'w' to wipe SPIFFS partition.");
-    delay(10);
+    // Serial.println("[SYS] Starting...\n[SYS] Send 'd' in less then 3 sec to boot in UART download mode or 'w' to wipe SPIFFS partition.");
+    // TelnetPrint.println("[SYS] Starting...\n[SYS] Send 'd' in less then 3 sec to boot in UART download mode or 'w' to wipe SPIFFS partition.");
+    //delay(3100);
     while (Serial.available() > 0) {
         switch (Serial.readStringUntil('\n').charAt(0)) {
         case 'd':
@@ -824,12 +867,12 @@ void setup() {
     }
     if (!SPIFFS.begin()) {
         Serial.println("[SPIFFS] Mount failed. Formatting filesystem in 5 seconds...");
-        TelnetPrint.println("[SPIFFS] Mount failed. Formatting filesystem in 5 seconds...");
+        // TelnetPrint.println("[SPIFFS] Mount failed. Formatting filesystem in 5 seconds...");
         Serial.println("[SPIFFS] Unplug power NOW to abort!");
-        TelnetPrint.println("[SPIFFS] Unplug power NOW to abort!");
+        // TelnetPrint.println("[SPIFFS] Unplug power NOW to abort!");
         delay(5100);
         Serial.println("[SPIFFS] Formatting...");
-        TelnetPrint.println("[SPIFFS] Formatting...");
+        // TelnetPrint.println("[SPIFFS] Formatting...");
         SPIFFS.format();
         sysreboot(0);
     } else {
@@ -855,17 +898,19 @@ void setup() {
         // Serial.println(fs_info.usedBytes/1000);
         // TelnetPrint.println(fs_info.usedBytes/1000);
 
-        wlconf();
-        startsrv();
-        dnsServer.start(53, "*", WiFi.softAPIP());
+        wlconf2();
+        //startsrv();
 
         if(!SPIFFS.exists("/cfg.json")) {
+            TelnetPrint.begin();
             Serial.println("[SPIFFS] Configuration does not exist. Pausing setup.");
             TelnetPrint.println("[SPIFFS] Configuration does not exist. Pausing setup.");
             // File jsnw = SPIFFS.open("/cfg.json", "w");
             // StaticJsonDocument<256> doc;
             //startsrv();
-            //wlconf();
+            //wlconf2();
+            dnsServer.start(53, "*", WiFi.softAPIP());
+            startsrv();
             setup_ok=0;
             while (setup_ok !=1 ) {
                 dnsServer.processNextRequest();
@@ -890,6 +935,45 @@ void setup() {
                 sysreboot(0);
                 return;
             }
+            if (doc["hw"]["p"] != -1) {
+                atx = doc["hw"]["p"];
+                pinMode(atx, OUTPUT);
+            }
+            if (doc["hw"]["status"] != -1) {
+                statusled = doc["hw"]["status"];
+                pinMode(statusled, OUTPUT);
+            }
+            if (doc["hw"]["c1"] != -1) {
+                chnr++;
+                chout1 = doc["hw"]["c1"];
+                pinMode(chout1, OUTPUT);
+                digitalWrite(chout1, LOW);
+            }
+            if (doc["hw"]["c2"] != -1) {
+                chnr++;
+                chout2 = doc["hw"]["c2"];
+                pinMode(chout2, OUTPUT);
+                digitalWrite(chout2, LOW);
+            }
+            if (doc["hw"]["c3"] != -1) {
+                chnr++;
+                chout3 = doc["hw"]["c3"];
+                pinMode(chout3, OUTPUT);
+                digitalWrite(chout3, LOW);
+            }
+            if (doc["hw"]["c4"] != -1) {
+                chnr++;
+                chout4 = doc["hw"]["c4"];
+                pinMode(chout4, OUTPUT);
+                digitalWrite(chout4, LOW);
+            }
+            if (doc["hw"]["c5"] != -1) {
+                chnr++;
+                chout5 = doc["hw"]["c5"];
+                pinMode(chout5, OUTPUT);
+                digitalWrite(chout5, LOW);
+            }
+            TelnetPrint.begin();
             Serial.println("[SYS] Checking factory reset flag...");
             TelnetPrint.println("[SYS] Checking factory reset flag...");
             if (doc["meta"]["fact"] == "1") {
@@ -901,8 +985,6 @@ void setup() {
                 //doc["meta"]["fact"] = 0; // factory mode off
                 // fact = 0;
             }
-            Serial.println("[SYS] Reading system config from file");
-            TelnetPrint.println("[SYS] Reading system config from file");
             //analogWriteRange(doc["sw"]["anw"]);
             anw = doc["sw"]["anw"];
             diynr = doc["sw"]["dnr"];
@@ -916,45 +998,11 @@ void setup() {
             webui = doc["web"] | "dev"; //.as<String>();
 
             // const int chnr = doc["sw"]["chnr"];
-            if (doc["hw"]["p"] != -1) {
-                atx = doc["hw"]["p"];
-                pinMode(atx, OUTPUT);
-            }
-            if (doc["hw"]["status"] != -1) {
-                statusled = doc["hw"]["status"];
-                pinMode(statusled, OUTPUT);
-            }
-            if (doc["hw"]["c1"] != -1) {
-                chnr++;
-                chout1 = doc["hw"]["c1"];
-                pinMode(chout1, OUTPUT);
-            }
-            if (doc["hw"]["c2"] != -1) {
-                chnr++;
-                chout2 = doc["hw"]["c2"];
-                pinMode(chout2, OUTPUT);
-            }
-            if (doc["hw"]["c3"] != -1) {
-                chnr++;
-                chout3 = doc["hw"]["c3"];
-                pinMode(chout3, OUTPUT);
-            }
-            if (doc["hw"]["c4"] != -1) {
-                chnr++;
-                chout4 = doc["hw"]["c4"];
-                pinMode(chout4, OUTPUT);
-            }
-            if (doc["hw"]["c5"] != -1) {
-                chnr++;
-                chout5 = doc["hw"]["c5"];
-                pinMode(chout5, OUTPUT);
-            }
-
-
+            
             // dbg_cfgver=doc["meta"]["cfgver"];
             jsnld.close();
         }
-
+        startsrv();
     }
 
     Serial.println("[SYS] Enabling IR receiver");
@@ -1454,16 +1502,17 @@ void loop() {
     //     ftable_ex(btn_lookup(adc_val));
     // }
 
-    if(WiFi.status() == WL_CONNECTED) {
-        wltim=millis();
-        wlconf_started=false;
-    }
-    if(millis()-wltim >= wltimeout*1000 && wlconf_started==false) {
-        Serial.println("[SYS] WLAN timeout.");
-        TelnetPrint.println("[SYS] WLAN timeout.");
-        wlconf();
-        wltim=millis();
-    }
+    // if(WiFi.status() == WL_CONNECTED) {
+    //     wltim=millis();
+    //     wlconf_started=false;
+    // }
+    // if(millis()-wltim >= wltimeout*1000 && wlconf_started==false) {
+    //     Serial.println("[SYS] WLAN timeout.");
+    //     TelnetPrint.println("[SYS] WLAN timeout.");
+    //     wlconf2();
+    //     wltim=millis();
+    // }
+    
 //fade thing
     if(millis() - lastfade >=1) {
         for(int i=0; i<=chnr; i++) {
@@ -1491,20 +1540,20 @@ void loop() {
         // }
         // cron5sec=millis();
     }
-if(millis() - lastsave >= savetim*1000){
-    if(needs_update()){
-        TelnetPrint.println("update /last on disk");
-        TelnetPrint.println(savetim);
-        File last = SPIFFS.open("/last", "w");
-        for(int i=0; i<=chnr; i++) {
-            last.println(targetbr[i]);
-            persistbr[i]=targetbr[i];
-    }
-    last.close();
-    }
+    if(millis() - lastsave >= savetim*1000) {
+        if(needs_update()) {
+            TelnetPrint.println("update /last on disk");
+            TelnetPrint.println(savetim);
+            File last = SPIFFS.open("/last", "w");
+            for(int i=0; i<=chnr; i++) {
+                last.println(targetbr[i]);
+                persistbr[i]=targetbr[i];
+            }
+            last.close();
+        }
 
-    lastsave=millis();
-}
+        lastsave=millis();
+    }
     //TelnetPrint.flush();
     digitalWrite(statusled, millis() % 1000 > 500 ? HIGH : LOW);
 }
