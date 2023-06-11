@@ -66,7 +66,7 @@ const char index_html[] PROGMEM= R"rawliteral(<meta content="width=device-width,
 const char wlan_html[] PROGMEM= R"rawliteral(<meta content="width=device-width,initial-scale=1"name="viewport"><link href="a.css"rel="stylesheet"><center><h1>WLAN configuration</h1><hr><br><form action="/wlset"method="post"><p>WLAN mode: <select name="wlm"><option value="1">AP only<option value="2">Client only<option value="3">AP+Client</select><p>Client SSID: <input name="ssid"><p>Client PSK : <input name="psk"type="password"><p>AP SSID: <input name="apssid"><p>AP PSK : <input name="appsk"type="password"><p>Reconnect timeout:<input name="t"type="number"max="3600">sec</p><br><input type="submit"value="Save "></form><hr><br><a href="/"><=Return to main menu</a>)rawliteral";
 const char reset_html[] PROGMEM= R"rawliteral(<meta content="width=device-width,initial-scale=1"name="viewport"><link href="a.css"rel="stylesheet"><center><h1>Factory reset</h1><hr><p>Are you sure?<br><form action="/wipe"method="post"><input type="checkbox"value="1"name="meta_fact">Yes, wipe all settings</p><input type="submit"value="Save "align="right"></form><hr><br><a href="/"><=Return to main menu</a>)rawliteral";
 const char picker_html[] PROGMEM= R"rawliteral(<meta content="width=device-width,initial-scale=1"name=viewport><link href=a.css rel=stylesheet><center><h1>Color picker</h1><hr><form action=/shade method=post><p><input type="checkbox" name="p" checked>Persistent<br>CH 1: <input type=number name=ch1><br>CH 2: <input type=number name=ch2><br>CH 3: <input type=number name=ch3><br>CH 4: <input type=number name=ch4><br>CH 5: <input type=number name=ch5><br>Brightness: <input type=number name=ch0></p><input type=submit value="Save"></form><hr><br><a href=/><=Return to main menu</a><script>function sV() {fetch("/stat").then(response=>response.json()).then(json=>{for(let i=0;i<=5;i++){document.getElementsByName(`ch${i}`)[0].value=json[`c${i}`];}});} window.onload=sV</script>)rawliteral";
-const char setup_html[] PROGMEM= R"rawliteral(<meta content="width=device-width,initial-scale=1"name=viewport><link href=a.css rel=stylesheet><center><h1>Controller Settings</h1><hr><form action=/save method=post>I/O:<p>CH 1: <select name=hw_c1></select><br>CH 2: <select name=hw_c2></select><br>CH 3: <select name=hw_c3></select><br>CH 4: <select name=hw_c4></select><br>CH 5: <select name=hw_c5></select><br>ATX/psu_en: <select name=hw_p></select><br>Status LED: <select name=hw_st></select><hr>Misc:<br>PWM bit:<input type=number name=sw_anw><br>DIY nr:<input type=number name=sw_dnr><br>Save status every<input type=number name=sw_rbt>sec<hr>Brightness correction:<br>Gamma:<input type=number name=sw_b0/><br>CH 1:<input type=number name=sw_b1><br>CH 2:<input type=number name=sw_b2><br>CH 3:<input type=number name=sw_b3><br>CH 4:<input type=number name=sw_b4><br>CH 5:<input type=number name=sw_b5></p><input type=submit value="Save "></form><h6><i>Notes:</i><br>'*' - not recommended<br>'-1' - Disabled<br>'Now' - current value</h6><hr><br><a href=/><=Return to main menu</a><script>window.onload=function(){fetch('/cfg').then(response=> response.json()).then(data=>{for (const sectionKey in data){const section=data[sectionKey]; for (const key in section){const value=section[key]; const select=document.getElementsByName(`${sectionKey}_${key}`)[0]; if (select.tagName==='SELECT'){select.innerHTML=`<option value="${value}" selected>Now: ${value}</option> <option value="-1">Disabled</option><option value="0">0*</option><option value="2">2*</option><option value="4">4</option><option value="5">5</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16*</option>`;}else if(select.tagName==='INPUT'){select.value=value;}}}});};</script>)rawliteral";
+const char setup_html[] PROGMEM= R"rawliteral(<meta content="width=device-width,initial-scale=1"name=viewport><link href=a.css rel=stylesheet><center><h1>Controller Settings</h1><hr><form action=/save method=post>I/O:<p>CH 1: <select name=hw_c1></select><br>CH 2: <select name=hw_c2></select><br>CH 3: <select name=hw_c3></select><br>CH 4: <select name=hw_c4></select><br>CH 5: <select name=hw_c5></select><br>ATX/psu_en: <select name=hw_p></select><br>Status LED: <select name=hw_st></select><hr>Misc:<br>PWM bit:<input type=number name=sw_anw><br>DIY nr:<input type=number name=sw_dnr><br>Save status every<input type=number name=sw_rbt>sec<br>Fade ticks:<input type=number name=sw_tik><hr>Brightness correction:<br>Gamma:<input type=number name=sw_b0><br>CH 1:<input type=number name=sw_b1><br>CH 2:<input type=number name=sw_b2><br>CH 3:<input type=number name=sw_b3><br>CH 4:<input type=number name=sw_b4><br>CH 5:<input type=number name=sw_b5></p><input type=submit value="Save "></form><h6><i>Notes:</i><br>'*' - not recommended<br>'-1' - Disabled<br>'Now' - current value</h6><hr><br><a href=/><=Return to main menu</a><script>window.onload=function(){fetch('/cfg').then(response=> response.json()).then(data=>{for (const sectionKey in data){const section=data[sectionKey]; for (const key in section){const value=section[key]; const select=document.getElementsByName(`${sectionKey}_${key}`)[0]; if (select.tagName==='SELECT'){select.innerHTML=`<option value="${value}" selected>Now: ${value}</option> <option value="-1">Disabled</option><option value="0">0*</option><option value="2">2*</option><option value="4">4</option><option value="5">5</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16*</option>`;}else if(select.tagName==='INPUT'){select.value=value;}}}});};</script>)rawliteral";
 const char diymanager_html[] PROGMEM= R"rawliteral(<meta content="width=device-width,initial-scale=1"name=viewport><link href=a.css rel=stylesheet><center><h1>DIY Manager</h1><hr><p><form action=/diy method=post><br>Load DIY: <input name=dl type=number> <button type=submit>Load</button></form><form action=/diy method=post><br>Save shade as DIY: <input name=de type=number id=save> <button type=submit>Save</button></form><hr><br><a href="/"><=Return to main menu</a>)rawliteral";
 const char picker2_html[] PROGMEM= R"rawliteral(<html><meta content="width=device-width,initial-scale=1"name=viewport><link href=a.css rel=stylesheet><style>.slid{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;margin-top:20px}.s1{width:400px;height:30px}.s2{transform:rotate(270deg);height:100px;margin-bottom:28px;margin-top:28px}</style><h2>Color Picker 2</h2><div class=slid></div><script>window.onload=function(){Promise.all([fetch("/cfg").then((e=>e.json())),fetch("/stat").then((e=>e.json()))]).then((e=>{const n=e[0].hw,t=document.querySelector(".slid");if(t)for(const l in e[1])"c0"==l?t.innerHTML+=`<input type="range" class="s1" id="${l}" min="0" max="${Math.pow(2,e[0].sw.anw)}" value="${e[1][l]}"/>`:"-1"!==n[l]?t.innerHTML+=`<input type="range" class="s2" id="${l}" min="0" max="255" value="${e[1][l]}"/>`:t.innerHTML+=`<input type="range" class="s2" id="${l}"disabled/>`,document.getElementById(l).addEventListener("input",upres)}))};let timerId=null;function upres(){const e=document.getElementById("c0"),n=document.getElementById("c1"),t=document.getElementById("c2"),l=document.getElementById("c3"),c=document.getElementById("c4"),u=document.getElementById("c5");let a=null,d=null,o=null,i=null,s=null,m=null;e.value===a&&n.value===d&&t.value===o&&l.value===i&&c.value===s&&u.value===m||(a=e.value,d=n.value,o=t.value,i=l.value,s=c.value,m=u.value,timerId&&clearTimeout(timerId),timerId=setTimeout((()=>{const e=new XMLHttpRequest;e.open("POST","/raw",!0),e.setRequestHeader("Content-Type","application/x-www-form-urlencoded"),e.send(`c0=${a}&c1=${d}&c2=${o}&c3=${i}&c4=${s}&c5=${m}`),console.log(`c0=${a}&c1=${d}&c2=${o}&c3=${i}&c4=${s}&c5=${m}`)}),100))}</script></body></html>)rawliteral";
 const char success_html[] PROGMEM= R"rawliteral(<meta content="width=device-width,initial-scale=1"name="viewport"><link href="a.css"rel="stylesheet"><center><h1>Success!</h1><hr>Request completed successfully.<hr><br><a href="/"><=Return to main menu</a>)rawliteral";
@@ -108,9 +108,9 @@ struct control {
 } ctrl;
 
 unsigned long irtime, lastir, wltim, lastfade, cron5sec, lastsave;
-int sel, diynr=0, chnr = 0, anw = 1, currentbr[6], lastbr[6], wltimeout, targetbr[6], raw, calib[6], savetim, persistbr[6], adc_val;
+int sel, diynr=0, chnr = 0, anw = 1, currentbr[6], lastbr[6], wltimeout, targetbr[6], raw, calib[6], savetim, persistbr[6], adc_val, fadetick, ntik;
 //float adc_val;
-byte wlconf_started, setup_ok, irhold=0;
+byte wlconf_started, setup_ok, irhold=0, start_noti;
 
 void diyedit(int num);
 void diyload(int num);
@@ -222,6 +222,15 @@ int ir_lookup(int btn) {
     }
     return 0;
 }
+// int reached_shade(){  // dirty way of ckecking if the current shade is the same as the requested one, aka the fade effect stopped
+//     int res=1;
+//     for(int i=0; i<=chnr; i++){
+//         if(currentbr[i] != targetbr[i]){
+//             res=0;
+//         } 
+//     }
+//     return res;
+// }
 // int btnlookup (auto bid, auto btable){
 // for (int i=1; i <= btable[0].id; i++){
 //     if(btable[i].id == bid){
@@ -330,6 +339,63 @@ void awrite(int mode=0) {
     // }
 }
 
+void notifade(int ldiy=9, int tick=20) {                //blocking function
+    
+    int noti[chnr],done=0;
+    for(int i=0;i<=chnr;i++){
+        noti[i]=targetbr[i];
+    }
+    TelnetPrint.println(ldiy);
+    TelnetPrint.println(tick);
+    diyload(ldiy);
+    while(done<=chnr+1) {
+        // if(micros() - lastfade >= 2) {
+            for(int i=0; i<=chnr; i++) {
+                done++;
+                if (currentbr[0] !=0) {
+                    digitalWrite(atx, HIGH);
+                } else {
+                    digitalWrite(atx, LOW);
+                }
+                if(targetbr[i]>currentbr[i]) {
+                    currentbr[i]++;
+                    done=0;
+                }
+                if(targetbr[i]<currentbr[i]) {
+                    currentbr[i]--;
+                }
+                awrite(anw);
+            }
+        //     lastfade=micros();
+        // }
+    }
+    for(int i=0;i<=chnr;i++){
+        targetbr[i]=noti[i];
+    }
+    done=0;
+    while(done<=chnr+1) {
+        // if(micros() - lastfade >= 2) {
+            for(int i=0; i<=chnr; i++) {
+                done++;
+                if (currentbr[0] !=0) {
+                    digitalWrite(atx, HIGH);
+                } else {
+                    digitalWrite(atx, LOW);
+                }
+                if(targetbr[i]>currentbr[i]) {
+                    currentbr[i]++;
+                    done=0;
+                }
+                if(targetbr[i]<currentbr[i]) {
+                    currentbr[i]--;
+                }
+                awrite(anw);
+            }
+        //     lastfade=micros();
+        // }
+    }
+    TelnetPrint.println("finished notifade");
+}
 
 // void wlconf2() {
 //     int wlmode;
@@ -562,7 +628,7 @@ void startsrv() {
         TelnetPrint.println("[SETUP] /save Opening cfg.json w");
         File jsncfg = SPIFFS.open("/cfg.json", "w");
         TelnetPrint.println("open cfg.json");
-        StaticJsonDocument<348> doc;
+        StaticJsonDocument<355> doc;
         // Serial.println("[SETUP] /save Opened cfg.json w");
         // TelnetPrint.println("[SETUP] /save Opened cfg.json w");
         if(request->hasArg("hw_c1"))
@@ -596,6 +662,8 @@ void startsrv() {
             doc["sw"]["b4"]  = request->arg("sw_b4");
         if(request->hasArg("sw_b5"))
             doc["sw"]["b5"]  = request->arg("sw_b5");
+        if(request->hasArg("sw_tik"))
+            doc["sw"]["tik"]  = request->arg("sw_tik");
         if(request->hasArg("web"))
             doc["web"] = request->arg("web");
         if(request->hasArg("sw_rbt"))
@@ -837,6 +905,91 @@ void startsrv() {
     });
     server.serveStatic("/w/", SPIFFS, "/w/");
 
+// api version 1
+// GET
+    server.on("/api1/stat", HTTP_GET, [](AsyncWebServerRequest *request) {
+        char stat[72];
+        DynamicJsonDocument doc(130);
+
+        for(int i=0; i<=chnr; i++) {
+            doc["c"+ std::to_string(i)]=targetbr[i];
+        }
+        serializeJson(doc, stat);
+        request->send_P(200, "application/json", stat);
+    });
+    server.on("/api1/di", HTTP_GET, [](AsyncWebServerRequest *request) {
+        request->send(SPIFFS, "/diy.json", "application/json");
+    });
+    server.on("/api1/cfg", HTTP_GET, [](AsyncWebServerRequest *request) {
+        request->send(SPIFFS, "/cfg.json", "application/json");
+    });
+// POST
+    server.on("/api1/shade", HTTP_POST, [](AsyncWebServerRequest *request) {
+        raw=0;
+        if(request->hasArg("ch1"))
+            targetbr[1]=request->arg("ch1").toInt();
+        if(request->hasArg("ch2"))
+            targetbr[2]=request->arg("ch2").toInt();
+        if(request->hasArg("ch3"))
+            targetbr[3]=request->arg("ch3").toInt();
+        if(request->hasArg("ch4"))
+            targetbr[4]=request->arg("ch4").toInt();
+        if(request->hasArg("ch5"))
+            targetbr[5]=request->arg("ch5").toInt();
+        if(request->hasArg("ch0"))
+            targetbr[0]=request->arg("ch0").toInt();
+        lastsave=millis();
+        request->send_P(200, "text/plain", "ok");
+    });
+    server.on("/api1/diy", HTTP_POST, [](AsyncWebServerRequest *request) {
+        if(request->hasArg("dl")) {
+            diyload(request->arg("dl").toInt());
+        } else if(request->hasArg("de")) {
+                for(int i=0; i<=chnr; i++) {
+                lastbr[i]=targetbr[i];
+            }
+            diyedit(request->arg("de").toInt());
+        }
+        request->send_P(200, "text/plain", "ok");
+    });
+    server.on("/api1/n", HTTP_POST, [](AsyncWebServerRequest *request) {
+        if(request->hasArg("nt")) {
+            start_noti=request->arg("nt").toInt();
+        }
+        if(request->hasArg("ntk")) {
+            ntik=request->arg("ntk").toInt();
+        }
+        // for(int i=0;i<=chnr;i++){
+        //     noti[i]=targetbr[i];
+        // }
+        // diyload(ntype);
+        // while(reached_shade()!=1){
+        //     if(micros() - lastfade >= fadetick) {
+        //         for(int i=0; i<=chnr; i++) {
+        //             if (currentbr[0] !=0) {
+        //                 digitalWrite(atx, HIGH);
+        //             } else {
+        //                 digitalWrite(atx, LOW);
+        //             }
+
+        //             if(targetbr[i]>currentbr[i]) {
+        //                 currentbr[i]++;
+        //             }
+        //             if(targetbr[i]<currentbr[i]) {
+        //                 currentbr[i]--;
+        //             }
+        //             awrite(anw);
+        //         }
+        //         lastfade=micros();
+        //     }
+        // }
+        // for(int i=0;i<=chnr;i++){
+        //     targetbr[i]=noti[i];
+        // }
+        request->send_P(200, "text/plain", "ok");
+    });
+// end apiv1
+
     Serial.println("[SETUP] Starting webserver (begin)");
     TelnetPrint.println("[SETUP] Starting webserver (begin)");
     server.onNotFound(notFound);
@@ -995,7 +1148,8 @@ void setup() {
             calib[4]= doc["sw"]["b4"];
             calib[5]= doc["sw"]["b5"];
             savetim = doc["sw"]["rbt"];
-            webui = doc["web"] | "dev"; //.as<String>();
+            fadetick = doc["sw"]["tik"];
+            webui = doc["web"]|"dev"; //.as<String>();
 
             // const int chnr = doc["sw"]["chnr"];
             
@@ -1061,7 +1215,7 @@ void fadeto(int fadeval) {
 
 }
 
-void diyedit(int num) {    /////// UPDATE WITH JSON DIR ///////
+void diyedit(int num) {                         // saves the current brightness values in the specified slot then calls diyload() to load and applit.
     File jsndiy = SPIFFS.open("/diy.json", "r");
     TelnetPrint.println("open diy.json");
     DynamicJsonDocument doc(jsndiy.size()*2 + DIYTSIZE);
@@ -1106,7 +1260,7 @@ void diyedit(int num) {    /////// UPDATE WITH JSON DIR ///////
     irhold = 0;
     diyload(num);
 }
-void diyload(int num) {  /////// UPDATE WITH JSON DIR ///////
+void diyload(int num) {                         // loads and applies values stored in the specified slot
     File jsndiy = SPIFFS.open("/diy.json", "r");
     TelnetPrint.println("open diy.json");
     TelnetPrint.println("diyload spiffs size:");
@@ -1514,7 +1668,7 @@ void loop() {
     // }
     
 //fade thing
-    if(millis() - lastfade >=1) {
+    if(micros() - lastfade >= fadetick) {
         for(int i=0; i<=chnr; i++) {
             if (currentbr[0] !=0) {
                 digitalWrite(atx, HIGH);
@@ -1530,8 +1684,9 @@ void loop() {
             }
             awrite(anw);
         }
-        lastfade=millis();
+        lastfade=micros();
     }
+
     if(millis() - cron5sec >= 5000) {
         // Dir dir = SPIFFS.openDir ("/t/");
         // while (dir.next ()) {
@@ -1539,6 +1694,10 @@ void loop() {
         // SPIFFS.remove(dir.fileName());
         // }
         // cron5sec=millis();
+    }
+    if(start_noti!=0){
+        notifade(start_noti,ntik);
+        start_noti=0;
     }
     if(millis() - lastsave >= savetim*1000) {
         if(needs_update()) {
