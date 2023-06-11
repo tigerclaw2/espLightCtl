@@ -2,7 +2,7 @@ This is the developement branch of LightCtl.
 The software found here is most likely untested and unstable.
 I am not responsible for broken esps or anything that happens if you decide to compile and run this code.
 
-# espLightCtl v0.3 dev (Pre Release 1)
+# espLightCtl v0.3 dev (Pre Release 2)
 
 espLightCtl is an open-source LED control firmware designed for ESP devices. It offers a comprehensive set of features to facilitate flexible and customizable LED control. The primary focus of this project is to provide a smart LED control experience without relying on external internet servers or any other 3rd parties including Home Assistant or other self-hosted solutions.
 
