@@ -40,8 +40,9 @@ ADC_MODE(ADC_VCC);
 #define DECODE_NEC
 //#define DIYTSIZE 112
 #define DIYTSIZE 130
-#define MAX_IR 0
-#define MAX_BTN 0
+#define MAX_IR 10
+#define MAX_BTN 10
+#define BTOL 5
 
 #define irbru 0xF700FF
 #define irbrd 0xF7807F
@@ -107,8 +108,8 @@ struct control {
     int irbskp;
 } ctrl;
 
-unsigned long irtime, lastir, wltim, lastfade, cron5sec, lastsave;
-int sel, diynr=0, chnr = 0, anw = 1, currentbr[6], lastbr[6], wltimeout, targetbr[6], raw, calib[6], savetim, persistbr[6], adc_val, fadetick, ntik;
+unsigned long irtime, lastir, wltim, lastfade, cron1, lastsave, vloop[30], cron2, lastwlscan;
+int sel, diynr=0, chnr = 0, anw = 1, currentbr[6], lastbr[6], wltimeout, targetbr[6], raw, calib[6], savetim, persistbr[6], adc_val, fadetick, ntik, vl;
 //float adc_val;
 byte wlconf_started, setup_ok, irhold=0, start_noti;
 
@@ -134,6 +135,7 @@ void btn_loadmap() {
         ctrl.btn[i].button=file.parseInt();
         ctrl.btn[i].function=file.parseInt();
         if(!file.available()) {
+            ctrl.btn[i+1].button=-1;
             break;
         }
     }
@@ -145,34 +147,43 @@ int btn_lookup(int btn) {
     // Check if the button is in the btable array
     TelnetPrint.println("BTN Lookup");
     for (int i = 1; i <= MAX_BTN; i++) {
-        if (ctrl.btn[i].button == btn) {
+        if (btn > ctrl.btn[i].button - BTOL && btn < ctrl.btn[i].button + BTOL) {
             return ctrl.btn[i].function;
         }
-
+        if(ctrl.btn[i].button == -1) {
+            return 0;
+        }
         // If the button was not found in the btable array, search the file
         if (i == MAX_BTN && ctrl.btnmax > MAX_BTN) {
             TelnetPrint.println("BTN Lookup file");
 
             File file = SPIFFS.open("/map.btn", "r");
-
+            file.seek(2*MAX_BTN*sizeof(int));       //seek the file, there is no need to read again what we already have in ram
             // Seek to the first byte of the 33rd entry in the file
-            file.seek(MAX_BTN * 2, SeekSet);
+//            file.seek(MAX_BTN * 2, SeekSet);
 
             // Search the file for the button
             for (int i = MAX_BTN; i < ctrl.btnmax; i++) {
                 int fileButton = file.parseInt();
                 int fileFunction = file.parseInt();
-                if (fileButton == btn) {
+                if (btn > fileButton + BTOL && btn < fileButton - BTOL) {
                     file.close();
                     return fileFunction;
                 }
             }
-
+            while (int fileButton = file.parseInt()) {
+                if (btn > fileButton - BTOL && btn < fileButton + BTOL) {
+                    return file.parseInt();
+                } else {
+                    file.seek(sizeof(int));
+                }
+            }
             file.close();
         }
     }
     return 0;
 }
+
 void ir_loadmap() {
     TelnetPrint.println("IR LoadMap");
 
@@ -227,7 +238,7 @@ int ir_lookup(int btn) {
 //     for(int i=0; i<=chnr; i++){
 //         if(currentbr[i] != targetbr[i]){
 //             res=0;
-//         } 
+//         }
 //     }
 //     return res;
 // }
@@ -340,9 +351,9 @@ void awrite(int mode=0) {
 }
 
 void notifade(int ldiy=9, int tick=20) {                //blocking function
-    
+
     int noti[chnr],done=0;
-    for(int i=0;i<=chnr;i++){
+    for(int i=0; i<=chnr; i++) {
         noti[i]=targetbr[i];
     }
     TelnetPrint.println(ldiy);
@@ -350,47 +361,47 @@ void notifade(int ldiy=9, int tick=20) {                //blocking function
     diyload(ldiy);
     while(done<=chnr+1) {
         // if(micros() - lastfade >= 2) {
-            for(int i=0; i<=chnr; i++) {
-                done++;
-                if (currentbr[0] !=0) {
-                    digitalWrite(atx, HIGH);
-                } else {
-                    digitalWrite(atx, LOW);
-                }
-                if(targetbr[i]>currentbr[i]) {
-                    currentbr[i]++;
-                    done=0;
-                }
-                if(targetbr[i]<currentbr[i]) {
-                    currentbr[i]--;
-                }
-                awrite(anw);
+        for(int i=0; i<=chnr; i++) {
+            done++;
+            if (currentbr[0] !=0) {
+                digitalWrite(atx, HIGH);
+            } else {
+                digitalWrite(atx, LOW);
             }
+            if(targetbr[i]>currentbr[i]) {
+                currentbr[i]++;
+                done=0;
+            }
+            if(targetbr[i]<currentbr[i]) {
+                currentbr[i]--;
+            }
+            awrite(anw);
+        }
         //     lastfade=micros();
         // }
     }
-    for(int i=0;i<=chnr;i++){
+    for(int i=0; i<=chnr; i++) {
         targetbr[i]=noti[i];
     }
     done=0;
     while(done<=chnr+1) {
         // if(micros() - lastfade >= 2) {
-            for(int i=0; i<=chnr; i++) {
-                done++;
-                if (currentbr[0] !=0) {
-                    digitalWrite(atx, HIGH);
-                } else {
-                    digitalWrite(atx, LOW);
-                }
-                if(targetbr[i]>currentbr[i]) {
-                    currentbr[i]++;
-                    done=0;
-                }
-                if(targetbr[i]<currentbr[i]) {
-                    currentbr[i]--;
-                }
-                awrite(anw);
+        for(int i=0; i<=chnr; i++) {
+            done++;
+            if (currentbr[0] !=0) {
+                digitalWrite(atx, HIGH);
+            } else {
+                digitalWrite(atx, LOW);
             }
+            if(targetbr[i]>currentbr[i]) {
+                currentbr[i]++;
+                done=0;
+            }
+            if(targetbr[i]<currentbr[i]) {
+                currentbr[i]--;
+            }
+            awrite(anw);
+        }
         //     lastfade=micros();
         // }
     }
@@ -602,19 +613,48 @@ void startsrv() {
             request->send_P(500, "text/html", error_html);
         }
     });
+    server.on("/wlist", HTTP_GET, [](AsyncWebServerRequest *request) {
+// async webserver is in a hurry and crashes if it has to wait for a blocking function to return
+// so we need to do this and call the api 2 times in the webui
+        if(millis() - lastwlscan > 8000) {
+            WiFi.scanNetworks(true, true); 
+            lastwlscan = millis();
+            request->send_P(500, "text/plain", "Call again in 3 seconds but no more than 8");
+        } else {
+            DynamicJsonDocument doc(2048);
+            String stat;
+            // Add the scanned networks to the JSON document
+            for (int i = 0; i < WiFi.scanComplete(); i++) {
+                JsonObject wifi = doc.createNestedObject();
+                wifi["sid"] = WiFi.SSID(i);
+                wifi["enc"] = WiFi.encryptionType(i);
+                wifi["rsi"] = WiFi.RSSI(i);
+            }
+            serializeJson(doc, stat);
+            request->send_P(200, "application/json", stat.c_str());
+        }
+    });
 
-    // server.on("/wlist", HTTP_GET, [](AsyncWebServerRequest *request) {
-    //     request->send_P(200, "text/html", index_html);
-    // });
     server.on("/lsui", HTTP_GET, [](AsyncWebServerRequest *request) {
         String stat;
+        String filename;
         Dir dir = SPIFFS.openDir("/w/");
         while (dir.next()) {
-            stat += dir.fileName() + "\n";
+            //stat += concat(dir.fileName().indexOf('/', 1);
+            //stat += filename.substring(0,)
+            //stat += dir.fileName() + "\n";
             TelnetPrint.println(dir.fileName());
         }
         request->send_P(200, "text/plain", stat.c_str());
     });
+    server.on("/rmaui", HTTP_GET, [](AsyncWebServerRequest *request) {
+        Dir dir = SPIFFS.openDir("/w/");
+        while (dir.next()) {
+            SPIFFS.remove(dir.fileName());
+        }
+        request->send_P(200, "text/plain", "Removed all themes");
+    });
+
     Serial.println("[SETUP] Starting webserver on /setup");
     TelnetPrint.println("[SETUP] Starting webserver on /setup");
     server.on("/setup", HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -645,6 +685,12 @@ void startsrv() {
             doc["hw"]["st"] = request->arg("hw_st");
         if(request->hasArg("hw_p"))
             doc["hw"]["p"] = request->arg("hw_p");
+        if(request->hasArg("hw_adc")) {
+            if(request->arg("hw_adc"))
+                doc["hw"]["adc"] = request->arg("hw_adc");
+        } else {
+            doc["hw"]["adc"] = -1;
+        }
 
         if(request->hasArg("sw_anw"))
             doc["sw"]["anw"] = request->arg("sw_anw");
@@ -668,6 +714,7 @@ void startsrv() {
             doc["web"] = request->arg("web");
         if(request->hasArg("sw_rbt"))
             doc["sw"]["rbt"]  = request->arg("sw_rbt");
+
 
 
         // Serial.println("[SETUP] /save Write done to struct. status led next");
@@ -740,11 +787,26 @@ void startsrv() {
     server.on("/fup", HTTP_POST, [](AsyncWebServerRequest *request) {
         request->send(200);
     }, handleUpload);
+// server.on("/fdn", HTTP_POST, [](AsyncWebServerRequest *request) {
+//     if(request->hasArg("url")){
+//         HTTPClient httpClient;
+//         httpClient.begin(request->arg("url"));
+//         int httpCode = httpClient.GET();
 
+//         if (httpCode == 200) {
+//             Serial.println("File downloaded!");
+
+//             request->send_P(200, "text/html", success_html);
+//         } else {
+//             request->send_P(200, "text/plain", "Failed: " + httpCode);
+//         }
+//     } else {
+//         request->send_P(200, "text/plain", "Failed: no URL");
+//     }
+// });
     server.on("/pick", HTTP_GET, [](AsyncWebServerRequest *request) {
         request->send_P(200, "text/html", picker_html);
     });
-
     server.on("/shade", HTTP_POST, [](AsyncWebServerRequest *request) {
         Serial.println("[WEB] /shade");
         TelnetPrint.println("[WEB] /shade");
@@ -876,8 +938,8 @@ void startsrv() {
         request->send_P(200, "text/html", theme_html);
     });
     server.on("/irs", HTTP_GET, [](AsyncWebServerRequest *request) {
-        cron5sec = millis();
-        while(millis() - cron5sec <= 10000) {
+        cron1 = millis();
+        while(millis() - cron1 <= 10000) {
             if (irrecv.decode(&results)) {
                 if (results.value != 0xFFFFFFFF) {
                     request->send(200, "text/plain", String(results.value, HEX));  //to finish
@@ -891,9 +953,11 @@ void startsrv() {
         request->send(SPIFFS, "/map.ir", "text/plain");
     });
     server.on("/bts", HTTP_GET, [](AsyncWebServerRequest *request) {
-        cron5sec = millis();
+        TelnetPrint.print("/bts\nADC: ");
+        TelnetPrint.println(analogRead(adc));
+        TelnetPrint.flush();
         int btn_idle_val = analogRead(adc)*100;
-        while(millis() - cron5sec <= 10000) {
+        while(millis() - cron1 <= 10000) {
             if (analogRead(adc)*100 != btn_idle_val) {
                 request->send(200, "text/plain", String(analogRead(adc)*100));  //
             }
@@ -945,7 +1009,7 @@ void startsrv() {
         if(request->hasArg("dl")) {
             diyload(request->arg("dl").toInt());
         } else if(request->hasArg("de")) {
-                for(int i=0; i<=chnr; i++) {
+            for(int i=0; i<=chnr; i++) {
                 lastbr[i]=targetbr[i];
             }
             diyedit(request->arg("de").toInt());
@@ -1092,6 +1156,10 @@ void setup() {
                 atx = doc["hw"]["p"];
                 pinMode(atx, OUTPUT);
             }
+            if (doc["hw"]["adc"] != -1) {
+                adc = A0;
+                pinMode(adc, INPUT);
+            }
             if (doc["hw"]["status"] != -1) {
                 statusled = doc["hw"]["status"];
                 pinMode(statusled, OUTPUT);
@@ -1152,7 +1220,7 @@ void setup() {
             webui = doc["web"]|"dev"; //.as<String>();
 
             // const int chnr = doc["sw"]["chnr"];
-            
+
             // dbg_cfgver=doc["meta"]["cfgver"];
             jsnld.close();
         }
@@ -1179,7 +1247,7 @@ void setup() {
     });
     ArduinoOTA.begin();
 
-    File last = SPIFFS.open("/last", "r");
+    File last = SPIFFS.open("/last", "r");      //restore brightness
     TelnetPrint.println("open last");
     for(int i=0; i<=chnr; i++) {
         targetbr[i] = persistbr[i] = last.parseInt();
@@ -1534,6 +1602,7 @@ void ftable_ex(int fval ) {
 }
 
 void loop() {
+    auto loop_start=millis();
     ArduinoOTA.handle();
     dnsServer.processNextRequest();
 
@@ -1666,7 +1735,7 @@ void loop() {
     //     wlconf2();
     //     wltim=millis();
     // }
-    
+
 //fade thing
     if(micros() - lastfade >= fadetick) {
         for(int i=0; i<=chnr; i++) {
@@ -1687,15 +1756,29 @@ void loop() {
         lastfade=micros();
     }
 
-    if(millis() - cron5sec >= 5000) {
+    if(millis() - cron1 >= 1000) {
         // Dir dir = SPIFFS.openDir ("/t/");
         // while (dir.next ()) {
         // TelnetPrint.println (dir.fileName());
         // SPIFFS.remove(dir.fileName());
         // }
-        // cron5sec=millis();
+        float vlmed=0;
+        for(int i=1; i<=30; i++) {
+            vlmed+=vloop[i];
+        }
+        TelnetPrint.print("Loop avg (ms): ");
+        TelnetPrint.println(vlmed/30);
+        //TelnetPrint.println(analogRead(adc));
+        //TelnetPrint
+        cron1=millis();
     }
-    if(start_noti!=0){
+    if(millis() - cron2 >= 10000) {
+        TelnetPrint.print("ADC: ");
+        TelnetPrint.println(analogRead(adc));
+        cron2=millis();
+    }
+
+    if(start_noti!=0) {
         notifade(start_noti,ntik);
         start_noti=0;
     }
@@ -1715,4 +1798,9 @@ void loop() {
     }
     //TelnetPrint.flush();
     digitalWrite(statusled, millis() % 1000 > 500 ? HIGH : LOW);
+    vl++;
+    if(vl>30) {
+        vl=0;
+    }
+    vloop[vl]=millis()-loop_start;
 }
