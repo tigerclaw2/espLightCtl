@@ -85,7 +85,7 @@ Tar<FS> tar(&SPIFFS);
 //int rboot = 1;
 //int winset = 20;
 //int eeprommax = 10;
-double nms=2000;           //<<<<<<<<<<<<<<<<<------------------------
+double nms=1000;           //<<<<<<<<<<<<<<<<<------------------------
 
 int chout1 = -1;
 int chout2 = -1;
@@ -111,43 +111,43 @@ struct control {
 } ctrl;
 
 unsigned long irtime, lastir, wltim, lastfade, cron1, lastsave, vloop[30], cron2, lastwlscan, lastbrms, finbrms;
-int sel, diynr=0, chnr = 0, anw = 1, lastbr[6], wltimeout, raw, calib[6], savetim, persistbr[6], adc_val, fadetick, ntik, vl, fadetype;
-double speed[6], currentbr[6], targetbr[6];
+int sel, diynr=0, chnr = 0, anw = 1, lastbr[6], wltimeout, raw, calib[6], savetim, persistbr[6], targetbr[6], lasttarget[6], adc_val, fadetick, ntik, vl, fadetype=1;
+double speed[6], currentbr[6];
 //float adc_val;
-byte wlconf_started, setup_ok, irhold=0, start_noti;
+byte wlconf_started, setup_ok, irhold=0, start_noti, brichanged;
 
 void diyedit(int num);
 void diyload(int num);
 
-void setbri() {
-    //unsigned long tfin=millis()+
-    for(int i=0; i<=chnr; i++) {
-        speed[i]=(targetbr[i]-currentbr[i])/nms;
-        TelnetPrint.print("Speed result: ");
-        TelnetPrint.println(speed[i],6);
-        TelnetPrint.print("Expected end: ");
-        TelnetPrint.println(millis()+nms);
-        finbrms=millis()+nms+100;
-    }
-    fadetype=1;
-    lastbrms=millis();
+// void setbri() {
+//     //unsigned long tfin=millis()+
+//     for(int i=0; i<=chnr; i++) {
+//         speed[i]=(targetbr[i]-currentbr[i])/nms;
+//         TelnetPrint.print("Speed result: ");
+//         TelnetPrint.println(speed[i],6);
+//         TelnetPrint.print("Expected end: ");
+//         TelnetPrint.println(millis()+nms);
+//         finbrms=millis()+nms+100;
+//     }
+//     fadetype=1;
+//     lastbrms=millis();
 
 
-    // if(fadetype==1) { // new fading type using speed formula speed=tick/(current-target)
-    //     for(int i=0; i<=chnr; i++) {
-    //         speed[i]=fadetick/(currentbr[i]-target[i]);
-    //         targetbr[i]=target[i];
-    //     }
-    // } else if(fadetype==2) { // cpu|tick dependent fading
-    //     for(int i=0; i<=chnr; i++) {
-    //         targetbr[i]=target[i];
-    //     }
-    // } else if(fadetype==3) { // no fade/direct change
-    //     for(int i=0; i<=chnr; i++) {
-    //         currentbr[i]=targetbr[i]=target[i];
-    //     }
-    // }
-}
+//     // if(fadetype==1) { // new fading type using speed formula speed=tick/(current-target)
+//     //     for(int i=0; i<=chnr; i++) {
+//     //         speed[i]=fadetick/(currentbr[i]-target[i]);
+//     //         targetbr[i]=target[i];
+//     //     }
+//     // } else if(fadetype==2) { // cpu|tick dependent fading
+//     //     for(int i=0; i<=chnr; i++) {
+//     //         targetbr[i]=target[i];
+//     //     }
+//     // } else if(fadetype==3) { // no fade/direct change
+//     //     for(int i=0; i<=chnr; i++) {
+//     //         currentbr[i]=targetbr[i]=target[i];
+//     //     }
+//     // }
+// }
 int needs_update() {
     return 0;                       // for debug purposes, never save brightness to disk
     for(int i=0; i<=chnr; i++) {
@@ -701,7 +701,7 @@ void startsrv() {
         TelnetPrint.println("[SETUP] /save Opening cfg.json w");
         File jsncfg = SPIFFS.open("/cfg.json", "w");
         TelnetPrint.println("open cfg.json");
-        StaticJsonDocument<355> doc;
+        StaticJsonDocument<381> doc;
         // Serial.println("[SETUP] /save Opened cfg.json w");
         // TelnetPrint.println("[SETUP] /save Opened cfg.json w");
         if(request->hasArg("hw_c1"))
@@ -857,7 +857,7 @@ void startsrv() {
         if(request->hasArg("ch0"))
             targetbr[0]=request->arg("ch0").toInt();
         lastsave=millis();
-        setbri();
+        //setbri();
         // if(request->hasArg("p") && request->arg("p").toInt()==1) {
         //     TelnetPrint.println("[WEB] /shade Writing to file");
         //     File last = SPIFFS.open("/last", "w");
@@ -1036,6 +1036,11 @@ void startsrv() {
             targetbr[5]=request->arg("ch5").toInt();
         if(request->hasArg("ch0"))
             targetbr[0]=request->arg("ch0").toInt();
+        if(request->hasArg("fa")) {
+            fadetype=request->arg("fa").toInt();
+        } else {
+            fadetype=1;
+        }
         lastsave=millis();
         request->send_P(200, "text/plain", "ok");
     });
@@ -1173,7 +1178,7 @@ void setup() {
         } else {
             File jsnld = SPIFFS.open("/cfg.json", "r");
             TelnetPrint.println("open cfg.json");
-            StaticJsonDocument<404> doc;
+            StaticJsonDocument<445> doc;
             DeserializationError error = deserializeJson(doc, jsnld);
             if (error) {
                 Serial.print(F("[JSON] deserializeJson() failed: "));
@@ -1182,6 +1187,9 @@ void setup() {
                 TelnetPrint.println(error.f_str());
                 Serial.println(F("[SPIFFS] Moving broken file to: /cfg.json.broken"));
                 TelnetPrint.println(F("[SPIFFS] Moving broken file to: /cfg.json.broken"));
+                if(SPIFFS.exists("/cfg.json.broken")) {
+                    SPIFFS.remove("/cfg.json.broken");
+                }
                 SPIFFS.rename("/cfg.json","/cfg.json.broken");
                 sysreboot(0);
                 return;
@@ -1771,7 +1779,19 @@ void loop() {
     // }
 
 // new fade thing
-    if (fadetype==1) {
+    if(fadetype==1) {                                           // new fade effect
+        for(int i=0; i<=chnr; i++) {
+            if(lasttarget[i]!=targetbr[i]) {
+                speed[i]=(targetbr[i]-currentbr[i])/nms;
+                TelnetPrint.print("Speed result: ");
+                TelnetPrint.println(speed[i],6);
+                TelnetPrint.print("Expected end: ");
+                TelnetPrint.println(millis()+nms);
+                finbrms=millis()+nms+100;
+                lastbrms=millis();
+                lasttarget[i]=targetbr[i];
+            }
+        }
         for(int i=0; i<=chnr; i++) {
             if(targetbr[i]!=currentbr[i]) {
                 if(((speed[i]<0) && (currentbr[i]+speed[i]*(millis()-lastbrms)<targetbr[i]))||(speed[i]>0) && (currentbr[i]+speed[i]*(millis()-lastbrms)>targetbr[i])) {
@@ -1780,6 +1800,7 @@ void loop() {
                     continue;
                 }
                 currentbr[i]+=speed[i]*(millis()-lastbrms);
+                brichanged=1;
             }
         }
         lastbrms=millis();
@@ -1793,12 +1814,36 @@ void loop() {
                     TelnetPrint.print(" expected: ");
                     TelnetPrint.println(targetbr[i],6);
                     currentbr[i]=targetbr[i];
+                    brichanged=1;
                 }
             }
         }
+
+    } else if(fadetype==2) {                                    // classic fade effect
+        if(micros() - lastfade >= fadetick) {
+            for(int i=0; i<=chnr; i++) {
+                if(targetbr[i]>currentbr[i]) {
+                    currentbr[i]++;
+                    brichanged=1;
+                }
+                if(targetbr[i]<currentbr[i]) {
+                    currentbr[i]--;
+                    brichanged=1;
+                }
+            }
+            lastfade=micros();
+        }
     }
 
-
+    if(brichanged==1) {
+        if (currentbr[0] !=0) {
+            digitalWrite(atx, HIGH);
+        } else {
+            digitalWrite(atx, LOW);
+        }
+        awrite(anw);
+        brichanged=0;
+    }
 
 
 //fade thing - old version
@@ -1865,7 +1910,7 @@ void loop() {
     //TelnetPrint.flush();
     digitalWrite(statusled, millis() % 1000 > 500 ? HIGH : LOW);
 
-    awrite(anw);//                              <<<<------------
+    //awrite(anw);//                              <<<<------------
 
     vl++;
     if(vl>30) {
