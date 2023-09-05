@@ -15,6 +15,13 @@ function assig table:
 | diy 1...99 (diy xx) |
 +---------------------+
 */
+// check if raw actually does something, probably not
+// adc_val is not yet used but should probably not be an int
+// fadetick needs to be renamed and better mapped to nms that as well needs to be renamed
+// vl is only used in debug, remember to delete when releasing
+// cleanup web api that is implemented twice
+// cleanup 
+
 #include <Arduino.h>
 //#include <string>
 #include "FS.h"
@@ -114,7 +121,7 @@ unsigned long irtime, lastir, wltim, lastfade, cron1, lastsave, vloop[30], cron2
 int sel, diynr=0, chnr = 0, anw = 1, lastbr[6], wltimeout, raw, calib[6], savetim, persistbr[6], targetbr[6], lasttarget[6], adc_val, fadetick, ntik, vl, fadetype=1;
 double speed[6], currentbr[6];
 //float adc_val;
-byte wlconf_started, setup_ok, irhold=0, start_noti, brichanged;
+bool wlconf_started, setup_ok, irhold=0, start_noti, brichanged;
 
 void diyedit(int num);
 void diyload(int num);
@@ -318,10 +325,18 @@ void handleUpload(AsyncWebServerRequest *request, String filename, size_t index,
             tar.extract();
             file.close();
             TelnetPrint.println("untar ok");
+            TelnetPrint.println(filename);
             //SPIFFS.rmdir("/t/");
             SPIFFS.remove("/t/"+ filename);
+            TelnetPrint.println("Removed tar");
+            TelnetPrint.println(filename);
+            Dir dir = SPIFFS.openDir("/");
+            while (dir.next()) {
+                TelnetPrint.print("In flash:");
+                TelnetPrint.println(dir.fileName());
+            }
         }
-        request->redirect("/up");
+        request->redirect("/thm");
     }
 }
 
@@ -342,7 +357,6 @@ void sysreboot(int mode=0) {
         Serial.println("[SPIFFS] Unmounted.");
         TelnetPrint.println("[SPIFFS] Unmounted.");
         TelnetPrint.flush();
-        //delay(10);
         ESP.restart();
         break;
     }
@@ -562,6 +576,7 @@ void wlconf2() {
 
         }
     }
+    jsnwlan.close();
 }
 
 void startsrv() {
@@ -652,16 +667,16 @@ void startsrv() {
         if(millis() - lastwlscan > 8000) {
             WiFi.scanNetworks(true, true);
             lastwlscan = millis();
-            request->send_P(500, "text/plain", "Call again in 3 seconds but no more than 8");
+            request->send_P(500, "text/plain", "Call again in 3 seconds");
         } else {
             DynamicJsonDocument doc(2048);
             String stat;
             // Add the scanned networks to the JSON document
             for (int i = 0; i < WiFi.scanComplete(); i++) {
                 JsonObject wifi = doc.createNestedObject();
-                wifi["sid"] = WiFi.SSID(i);
-                wifi["enc"] = WiFi.encryptionType(i);
-                wifi["rsi"] = WiFi.RSSI(i);
+                wifi["n"] = WiFi.SSID(i);
+                wifi["e"] = WiFi.encryptionType(i);
+                wifi["p"] = WiFi.RSSI(i);
             }
             serializeJson(doc, stat);
             request->send_P(200, "application/json", stat.c_str());
@@ -673,9 +688,11 @@ void startsrv() {
         String filename;
         Dir dir = SPIFFS.openDir("/w/");
         while (dir.next()) {
-            //stat += concat(dir.fileName().indexOf('/', 1);
-            //stat += filename.substring(0,)
-            //stat += dir.fileName() + "\n";
+            // stat += concat(dir.fileName().indexOf('/', 1);
+            // stat += filename.substring(0,)
+            if(dir.fileName().endsWith(".i")){
+                stat += dir.fileName().substring(dir.fileName().lastIndexOf('/') + 1, dir.fileName().length() - 2) + "\n"; //extract the exact filename without path of the theme info file
+            }
             TelnetPrint.println(dir.fileName());
         }
         request->send_P(200, "text/plain", stat.c_str());
@@ -683,11 +700,33 @@ void startsrv() {
     server.on("/rmaui", HTTP_GET, [](AsyncWebServerRequest *request) {
         Dir dir = SPIFFS.openDir("/w/");
         while (dir.next()) {
+            TelnetPrint.print("Removed: ");
+            TelnetPrint.println(dir.fileName());
             SPIFFS.remove(dir.fileName());
         }
+        
         request->send_P(200, "text/plain", "Removed all themes");
     });
-
+    server.on("/ui", HTTP_POST, [](AsyncWebServerRequest *request) {
+        if(request->hasArg("web")){
+            File jsnweb = SPIFFS.open("/web.json", "w");
+            TelnetPrint.println("open web.json");
+            StaticJsonDocument<50> doc;
+            Dir dir = SPIFFS.openDir("/w/");
+            
+            while (dir.next()) {
+                if(dir.fileName().endsWith(request->arg("web")+".i")){
+                    File tinfo=SPIFFS.open(dir.fileName(), "r");
+                    doc["web"] = tinfo.readString();
+                    tinfo.close();
+                    TelnetPrint.printf(doc["web"]);
+                }   
+            }
+            serializeJson(doc, jsnweb);
+            jsnweb.close();
+        }
+        request->send_P(200, "text/html", success_html);
+    });
     Serial.println("[SETUP] Starting webserver on /setup");
     TelnetPrint.println("[SETUP] Starting webserver on /setup");
     server.on("/setup", HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -702,8 +741,6 @@ void startsrv() {
         File jsncfg = SPIFFS.open("/cfg.json", "w");
         TelnetPrint.println("open cfg.json");
         StaticJsonDocument<381> doc;
-        // Serial.println("[SETUP] /save Opened cfg.json w");
-        // TelnetPrint.println("[SETUP] /save Opened cfg.json w");
         if(request->hasArg("hw_c1"))
             doc["hw"]["c1"] = request->arg("hw_c1");
         if(request->hasArg("hw_c2"))
@@ -743,100 +780,21 @@ void startsrv() {
             doc["sw"]["b5"]  = request->arg("sw_b5");
         if(request->hasArg("sw_tik"))
             doc["sw"]["tik"]  = request->arg("sw_tik");
-        if(request->hasArg("web"))
-            doc["web"] = request->arg("web");
         if(request->hasArg("sw_rbt"))
             doc["sw"]["rbt"]  = request->arg("sw_rbt");
-
-
-
-        // Serial.println("[SETUP] /save Write done to struct. status led next");
-        // TelnetPrint.println("[SETUP] /save Write done to struct. status led next");
-        // if(request->hasArg("hw_st"))
-        //     if(request->arg("hw_st").toInt()==-2) {
-        //         doc["hw"]["st"] = LED_BUILTIN;
-        //     } else {
-        //         doc["hw"]["st"] = request->arg("hw_st").toInt();
-        //     };
-        //doc["meta"]["cfgver"]  = request->arg("meta_cfgver");
-        // Serial.println("[SETUP] Writing doc file with values:");
-        // TelnetPrint.println("[SETUP] Writing doc file with values:");
-        // Serial.println("[hw]");
-        // TelnetPrint.println("[hw]");
-        // Serial.print("[chout1] ");
-        // TelnetPrint.print("[chout1] ");
-        // Serial.println(doc["hw"]["c1"].as<int>());
-        // TelnetPrint.println(doc["hw"]["c1"].as<int>());
-        // Serial.print("[chout2] ");
-        // TelnetPrint.print("[chout2] ");
-        // Serial.println(doc["hw"]["c2"].as<int>());
-        // TelnetPrint.println(doc["hw"]["c2"].as<int>());
-        // Serial.print("[chout3] ");
-        // TelnetPrint.print("[chout3] ");
-        // Serial.println(doc["hw"]["c3"].as<int>());
-        // TelnetPrint.println(doc["hw"]["c3"].as<int>());
-        // Serial.print("[chout4] ");
-        // TelnetPrint.print("[chout4] ");
-        // Serial.println(doc["hw"]["c4"].as<int>());
-        // TelnetPrint.println(doc["hw"]["c4"].as<int>());
-        // Serial.print("[chout5] ");
-        // TelnetPrint.print("[chout5] ");
-        // Serial.println(doc["hw"]["c5"].as<int>());
-        // TelnetPrint.println(doc["hw"]["c5"].as<int>());
-        // Serial.print("[status] ");
-        // TelnetPrint.print("[status] ");
-        // Serial.println(doc["hw"]["status"].as<int>());
-        // TelnetPrint.println(doc["hw"]["status"].as<int>());
-        // Serial.println("[SETUP] /save Serializing cfg.json w");
-        // TelnetPrint.println("[SETUP] /save Serializing cfg.json w");
         serializeJson(doc, jsncfg);
         jsncfg.close();
 
         request->send_P(200, "text/html", success_html);
-
-        // File fil = SPIFFS.open("/cfg.json", "r");
-        // if (!fil) {
-        //     Serial.println("[SPIFFS] Failed to open file for reading.");
-        //     TelnetPrint.println("[SPIFFS] Failed to open file for reading.");
-        //     return;
-        // }
-        // while (fil.available()) {
-        //     fil.sendAll(Serial);
-        //     Serial.println();
-        //     TelnetPrint.println();
-        // }
-        // fil.close();
         setup_ok=1;
-        // } else {
-        //     request->send_P(500, "text/html", error_html);
-        // }
-        //int fact=std::stoi(request->getParam("meta_fact", true)->value().c_str());
     });
 
     server.on("/up", HTTP_GET, [](AsyncWebServerRequest *request) {
-//        request->send(200, "text/html", "<form method=\"POST\" action=\"/fup\" enctype=\"multipart/form-data\"><input type=\"file\" name=\"file\"><br><input type=\"submit\" value=\"Upload\"></form>");
         request->send(200, "text/html", theme_html);
     });
     server.on("/fup", HTTP_POST, [](AsyncWebServerRequest *request) {
         request->send(200);
     }, handleUpload);
-// server.on("/fdn", HTTP_POST, [](AsyncWebServerRequest *request) {
-//     if(request->hasArg("url")){
-//         HTTPClient httpClient;
-//         httpClient.begin(request->arg("url"));
-//         int httpCode = httpClient.GET();
-
-//         if (httpCode == 200) {
-//             Serial.println("File downloaded!");
-
-//             request->send_P(200, "text/html", success_html);
-//         } else {
-//             request->send_P(200, "text/plain", "Failed: " + httpCode);
-//         }
-//     } else {
-//         request->send_P(200, "text/plain", "Failed: no URL");
-//     }
-// });
     server.on("/pick", HTTP_GET, [](AsyncWebServerRequest *request) {
         request->send_P(200, "text/html", picker_html);
     });
@@ -1259,12 +1217,19 @@ void setup() {
             calib[5]= doc["sw"]["b5"];
             savetim = doc["sw"]["rbt"];
             fadetick = doc["sw"]["tik"];
-            webui = doc["web"]|"dev"; //.as<String>();
+//            webui = doc["web"]|"dev"; //.as<String>();
 
             // const int chnr = doc["sw"]["chnr"];
 
             // dbg_cfgver=doc["meta"]["cfgver"];
             jsnld.close();
+        }
+        if(SPIFFS.exists("/web.json")){
+            File jsnweb = SPIFFS.open("/web.json","r");
+            StaticJsonDocument<50> doc;
+            DeserializationError error = deserializeJson(doc, jsnweb);
+            webui = doc["web"].as<String>();
+            jsnweb.close();
         }
         startsrv();
     }
