@@ -6,3 +6,4 @@
 .vscode/launch.json
 .vscode/ipch
 src/espLightCtl.code-workspace
+testing/

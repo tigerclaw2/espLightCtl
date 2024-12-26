@@ -20,33 +20,40 @@ function assig table:
 // fadetick needs to be renamed and better mapped to nms that as well needs to be renamed
 // vl is only used in debug, remember to delete when releasing
 // cleanup web api that is implemented twice
-// cleanup 
+// cleanup
+
+// Things to actually do:
+// change locks
+// timers
 
 #include <Arduino.h>
-//#include <string>
-#include "FS.h"
-#include <IRremoteESP8266.h>
-#include <IRrecv.h>
-#include <IRutils.h>
-#include <ESP8266WiFi.h>
+// #include <string>
 #include <ArduinoJson.h>
 #include <ArduinoOTA.h>
-#include <ESPAsyncWebServer.h>
-#include <TelnetPrint.h>
 #include <DNSServer.h>
-#include <untar.h>
 #include <ESP8266HTTPClient.h>
+#include <ESP8266WiFi.h>
 #include <ESP8266httpUpdate.h>
+#include <ESPAsyncWebServer.h>
+#include <IRrecv.h>
+#include <IRremoteESP8266.h>
+#include <IRutils.h>
+#include <TelnetPrint.h>
+// #include <light.h>
+#include <untar.h>
+
+#include "FS.h"
 
 ADC_MODE(ADC_VCC);
+#define VERSION "0.8_Debug"
 #define DEBUG_USE_TELNET 1
 
 #define SPIFFS_CACHE = (1)
 #define SPIFFS_CACHE_WR = (1)
 
 #define DECODE_NEC
-//#define DIYTSIZE 112
-#define DIYTSIZE 130
+// #define DIYTSIZE 112
+// #define DIYTSIZE 130
 #define MAX_IR 10
 #define MAX_BTN 10
 #define BTOL 5
@@ -71,17 +78,17 @@ ADC_MODE(ADC_VCC);
 
 int recvPin = -1;
 
-const char index_html[] PROGMEM= R"rawliteral(<meta content="width=device-width,initial-scale=1"name="viewport"><link href="a.css"rel="stylesheet"><center><h1>Main menu</h1><hr><a href="/pick">Color Picker</a><br><a href="/pick2">Picker 2</a><br><a href="/diym">DIY Manager</a><br><a href="/thm">Theme Manager</a><hr><a href="/wlcfg">Configure WiFi</a><br><a href="/setup">Configure Hardware</a><br><a href="/rbt">Reboot</a><br><a href="/reset">Factory Reset</a><hr>)rawliteral";
-const char wlan_html[] PROGMEM= R"rawliteral(<meta content="width=device-width,initial-scale=1"name="viewport"><link href="a.css"rel="stylesheet"><center><h1>WLAN configuration</h1><hr><br><form action="/wlset"method="post"><p>WLAN mode: <select name="wlm"><option value="1">AP only<option value="2">Client only<option value="3">AP+Client</select><p>Client SSID: <input name="ssid"><p>Client PSK : <input name="psk"type="password"><p>AP SSID: <input name="apssid"><p>AP PSK : <input name="appsk"type="password"><p>Reconnect timeout:<input name="t"type="number"max="3600">sec</p><br><input type="submit"value="Save "></form><hr><br><a href="/"><=Return to main menu</a>)rawliteral";
-const char reset_html[] PROGMEM= R"rawliteral(<meta content="width=device-width,initial-scale=1"name="viewport"><link href="a.css"rel="stylesheet"><center><h1>Factory reset</h1><hr><p>Are you sure?<br><form action="/wipe"method="post"><input type="checkbox"value="1"name="meta_fact">Yes, wipe all settings</p><input type="submit"value="Save "align="right"></form><hr><br><a href="/"><=Return to main menu</a>)rawliteral";
-const char picker_html[] PROGMEM= R"rawliteral(<meta content="width=device-width,initial-scale=1"name=viewport><link href=a.css rel=stylesheet><center><h1>Color picker</h1><hr><form action=/shade method=post><p><input type="checkbox" name="p" checked>Persistent<br>CH 1: <input type=number name=ch1><br>CH 2: <input type=number name=ch2><br>CH 3: <input type=number name=ch3><br>CH 4: <input type=number name=ch4><br>CH 5: <input type=number name=ch5><br>Brightness: <input type=number name=ch0></p><input type=submit value="Save"></form><hr><br><a href=/><=Return to main menu</a><script>function sV() {fetch("/stat").then(response=>response.json()).then(json=>{for(let i=0;i<=5;i++){document.getElementsByName(`ch${i}`)[0].value=json[`c${i}`];}});} window.onload=sV</script>)rawliteral";
-const char setup_html[] PROGMEM= R"rawliteral(<meta content="width=device-width,initial-scale=1"name=viewport><link href=a.css rel=stylesheet><center><h1>Controller Settings</h1><hr><form action=/save method=post>I/O:<p>CH 1: <select name=hw_c1></select><br>CH 2: <select name=hw_c2></select><br>CH 3: <select name=hw_c3></select><br>CH 4: <select name=hw_c4></select><br>CH 5: <select name=hw_c5></select><br>ATX/psu_en: <select name=hw_p></select><br>Status LED: <select name=hw_st></select><hr>Misc:<br>PWM bit:<input type=number name=sw_anw><br>DIY nr:<input type=number name=sw_dnr><br>Save status every<input type=number name=sw_rbt>sec<br>Fade ticks:<input type=number name=sw_tik><hr>Brightness correction:<br>Gamma:<input type=number name=sw_b0><br>CH 1:<input type=number name=sw_b1><br>CH 2:<input type=number name=sw_b2><br>CH 3:<input type=number name=sw_b3><br>CH 4:<input type=number name=sw_b4><br>CH 5:<input type=number name=sw_b5></p><input type=submit value="Save "></form><h6><i>Notes:</i><br>'*' - not recommended<br>'-1' - Disabled<br>'Now' - current value</h6><hr><br><a href=/><=Return to main menu</a><script>window.onload=function(){fetch('/cfg').then(response=> response.json()).then(data=>{for (const sectionKey in data){const section=data[sectionKey]; for (const key in section){const value=section[key]; const select=document.getElementsByName(`${sectionKey}_${key}`)[0]; if (select.tagName==='SELECT'){select.innerHTML=`<option value="${value}" selected>Now: ${value}</option> <option value="-1">Disabled</option><option value="0">0*</option><option value="2">2*</option><option value="4">4</option><option value="5">5</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16*</option>`;}else if(select.tagName==='INPUT'){select.value=value;}}}});};</script>)rawliteral";
-const char diymanager_html[] PROGMEM= R"rawliteral(<meta content="width=device-width,initial-scale=1"name=viewport><link href=a.css rel=stylesheet><center><h1>DIY Manager</h1><hr><p><form action=/diy method=post><br>Load DIY: <input name=dl type=number> <button type=submit>Load</button></form><form action=/diy method=post><br>Save shade as DIY: <input name=de type=number id=save> <button type=submit>Save</button></form><hr><br><a href="/"><=Return to main menu</a>)rawliteral";
-const char picker2_html[] PROGMEM= R"rawliteral(<html><meta content="width=device-width,initial-scale=1"name=viewport><link href=a.css rel=stylesheet><style>.slid{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;margin-top:20px}.s1{width:400px;height:30px}.s2{transform:rotate(270deg);height:100px;margin-bottom:28px;margin-top:28px}</style><h2>Color Picker 2</h2><div class=slid></div><script>window.onload=function(){Promise.all([fetch("/cfg").then((e=>e.json())),fetch("/stat").then((e=>e.json()))]).then((e=>{const n=e[0].hw,t=document.querySelector(".slid");if(t)for(const l in e[1])"c0"==l?t.innerHTML+=`<input type="range" class="s1" id="${l}" min="0" max="${Math.pow(2,e[0].sw.anw)}" value="${e[1][l]}"/>`:"-1"!==n[l]?t.innerHTML+=`<input type="range" class="s2" id="${l}" min="0" max="255" value="${e[1][l]}"/>`:t.innerHTML+=`<input type="range" class="s2" id="${l}"disabled/>`,document.getElementById(l).addEventListener("input",upres)}))};let timerId=null;function upres(){const e=document.getElementById("c0"),n=document.getElementById("c1"),t=document.getElementById("c2"),l=document.getElementById("c3"),c=document.getElementById("c4"),u=document.getElementById("c5");let a=null,d=null,o=null,i=null,s=null,m=null;e.value===a&&n.value===d&&t.value===o&&l.value===i&&c.value===s&&u.value===m||(a=e.value,d=n.value,o=t.value,i=l.value,s=c.value,m=u.value,timerId&&clearTimeout(timerId),timerId=setTimeout((()=>{const e=new XMLHttpRequest;e.open("POST","/raw",!0),e.setRequestHeader("Content-Type","application/x-www-form-urlencoded"),e.send(`c0=${a}&c1=${d}&c2=${o}&c3=${i}&c4=${s}&c5=${m}`),console.log(`c0=${a}&c1=${d}&c2=${o}&c3=${i}&c4=${s}&c5=${m}`)}),100))}</script></body></html>)rawliteral";
-const char success_html[] PROGMEM= R"rawliteral(<meta content="width=device-width,initial-scale=1"name="viewport"><link href="a.css"rel="stylesheet"><center><h1>Success!</h1><hr>Request completed successfully.<hr><br><a href="/"><=Return to main menu</a>)rawliteral";
-const char error_html[] PROGMEM= R"rawliteral(<html><body bgcolor=#800><h1>Error!<hr>Check DevTools for http code or more details.)rawliteral";
-const char a_css[] PROGMEM= R"rawliteral(html{max-width:35ch;margin:auto;font-size:150%;color:orange;}a:link,a:visited,a:hover,a:active{color:#add8e6; text-decoration:none;}h1{color:#90ee90;text-decoration:none;}body{background-color:#1E1E1E;})rawliteral";
-const char theme_html[] PROGMEM= R"rawliteral(<meta content="width=device-width,initial-scale=1"name="viewport"><link href="a.css"rel="stylesheet"><center><h1>Theme Upload</h1><hr><form method="POST" action="/fup" enctype="multipart/form-data"><input type="file" name="file"><br><input type="submit" value="Upload"></form>)rawliteral";
+const char index_html[] PROGMEM = R"rawliteral(<meta content="width=device-width,initial-scale=1"name="viewport"><link href="a.css"rel="stylesheet"><center><h1>Main menu</h1><hr><a href="/pick">Color Picker</a><br><a href="/pick2">Picker 2</a><br><a href="/diym">DIY Manager</a><br><a href="/thm">Theme Manager</a><hr><a href="/wlcfg">Configure WiFi</a><br><a href="/setup">Configure Hardware</a><br><a href="/rbt">Reboot</a><br><a href="/reset">Factory Reset</a><hr>)rawliteral";
+const char wlan_html[] PROGMEM = R"rawliteral(<meta content="width=device-width,initial-scale=1"name="viewport"><link href="a.css"rel="stylesheet"><center><h1>WLAN configuration</h1><hr><br><form action="/wlset"method="post"><p>WLAN mode: <select name="wlm"><option value="1">AP only<option value="2">Client only<option value="3">AP+Client</select><p>Client SSID: <input name="ssid"><p>Client PSK : <input name="psk"type="password"><p>AP SSID: <input name="apssid"><p>AP PSK : <input name="appsk"type="password"><p>Reconnect timeout:<input name="t"type="number"max="3600">sec</p><br><input type="submit"value="Save "></form><hr><br><a href="/"><=Return to main menu</a>)rawliteral";
+const char reset_html[] PROGMEM = R"rawliteral(<meta content="width=device-width,initial-scale=1"name="viewport"><link href="a.css"rel="stylesheet"><center><h1>Factory reset</h1><hr><p>Are you sure?<br><form action="/wipe"method="post"><input type="checkbox"value="1"name="meta_fact">Yes, wipe all settings</p><input type="submit"value="Save "align="right"></form><hr><br><a href="/"><=Return to main menu</a>)rawliteral";
+const char picker_html[] PROGMEM = R"rawliteral(<meta content="width=device-width,initial-scale=1"name=viewport><link href=a.css rel=stylesheet><center><h1>Color picker</h1><hr><form action=/shade method=post><p><input type="checkbox" name="p" checked>Persistent<br>CH 1: <input type=number name=ch1><br>CH 2: <input type=number name=ch2><br>CH 3: <input type=number name=ch3><br>CH 4: <input type=number name=ch4><br>CH 5: <input type=number name=ch5><br>Brightness: <input type=number name=ch0></p><input type=submit value="Save"></form><hr><br><a href=/><=Return to main menu</a><script>function sV() {fetch("/stat").then(response=>response.json()).then(json=>{for(let i=0;i<=5;i++){document.getElementsByName(`ch${i}`)[0].value=json[`c${i}`];}});} window.onload=sV</script>)rawliteral";
+const char setup_html[] PROGMEM = R"rawliteral(<meta content="width=device-width,initial-scale=1"name=viewport><link href=a.css rel=stylesheet><center><h1>Controller Settings</h1><hr><form action=/save method=post>I/O:<p>CH 1: <select name=hw_c1></select><br>CH 2: <select name=hw_c2></select><br>CH 3: <select name=hw_c3></select><br>CH 4: <select name=hw_c4></select><br>CH 5: <select name=hw_c5></select><br>ATX/psu_en: <select name=hw_p></select><br>Status LED: <select name=hw_st></select><hr>Misc:<br>PWM bit:<input type=number name=sw_anw><br>DIY nr:<input type=number name=sw_dnr><br>Save status every<input type=number name=sw_rbt>sec<br>Fade ticks:<input type=number name=sw_tik><hr>Brightness correction:<br>Gamma:<input type=number name=sw_b0><br>CH 1:<input type=number name=sw_b1><br>CH 2:<input type=number name=sw_b2><br>CH 3:<input type=number name=sw_b3><br>CH 4:<input type=number name=sw_b4><br>CH 5:<input type=number name=sw_b5></p><input type=submit value="Save "></form><h6><i>Notes:</i><br>'*' - not recommended<br>'-1' - Disabled<br>'Now' - current value</h6><hr><br><a href=/><=Return to main menu</a><script>window.onload=function(){fetch('/cfg').then(response=> response.json()).then(data=>{for (const sectionKey in data){const section=data[sectionKey]; for (const key in section){const value=section[key]; const select=document.getElementsByName(`${sectionKey}_${key}`)[0]; if (select.tagName==='SELECT'){select.innerHTML=`<option value="${value}" selected>Now: ${value}</option> <option value="-1">Disabled</option><option value="0">0*</option><option value="2">2*</option><option value="4">4</option><option value="5">5</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16*</option>`;}else if(select.tagName==='INPUT'){select.value=value;}}}});};</script>)rawliteral";
+const char diymanager_html[] PROGMEM = R"rawliteral(<meta content="width=device-width,initial-scale=1"name=viewport><link href=a.css rel=stylesheet><center><h1>DIY Manager</h1><hr><p><form action=/diy method=post><br>Load DIY: <input name=dl type=number> <button type=submit>Load</button></form><form action=/diy method=post><br>Save shade as DIY: <input name=de type=number id=save> <button type=submit>Save</button></form><hr><br><a href="/"><=Return to main menu</a>)rawliteral";
+const char picker2_html[] PROGMEM = R"rawliteral(<html><meta content="width=device-width,initial-scale=1"name=viewport><link href=a.css rel=stylesheet><style>.slid{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;margin-top:20px}.s1{width:400px;height:30px}.s2{transform:rotate(270deg);height:100px;margin-bottom:28px;margin-top:28px}</style><h2>Color Picker 2</h2><div class=slid></div><script>window.onload=function(){Promise.all([fetch("/cfg").then((e=>e.json())),fetch("/stat").then((e=>e.json()))]).then((e=>{const n=e[0].hw,t=document.querySelector(".slid");if(t)for(const l in e[1])"c0"==l?t.innerHTML+=`<input type="range" class="s1" id="${l}" min="0" max="${Math.pow(2,e[0].sw.anw)}" value="${e[1][l]}"/>`:"-1"!==n[l]?t.innerHTML+=`<input type="range" class="s2" id="${l}" min="0" max="255" value="${e[1][l]}"/>`:t.innerHTML+=`<input type="range" class="s2" id="${l}"disabled/>`,document.getElementById(l).addEventListener("input",upres)}))};let timerId=null;function upres(){const e=document.getElementById("c0"),n=document.getElementById("c1"),t=document.getElementById("c2"),l=document.getElementById("c3"),c=document.getElementById("c4"),u=document.getElementById("c5");let a=null,d=null,o=null,i=null,s=null,m=null;e.value===a&&n.value===d&&t.value===o&&l.value===i&&c.value===s&&u.value===m||(a=e.value,d=n.value,o=t.value,i=l.value,s=c.value,m=u.value,timerId&&clearTimeout(timerId),timerId=setTimeout((()=>{const e=new XMLHttpRequest;e.open("POST","/raw",!0),e.setRequestHeader("Content-Type","application/x-www-form-urlencoded"),e.send(`c0=${a}&c1=${d}&c2=${o}&c3=${i}&c4=${s}&c5=${m}`),console.log(`c0=${a}&c1=${d}&c2=${o}&c3=${i}&c4=${s}&c5=${m}`)}),100))}</script></body></html>)rawliteral";
+const char success_html[] PROGMEM = R"rawliteral(<meta content="width=device-width,initial-scale=1"name="viewport"><link href="a.css"rel="stylesheet"><center><h1>Success!</h1><hr>Request completed successfully.<hr><br><a href="/"><=Return to main menu</a>)rawliteral";
+const char error_html[] PROGMEM = R"rawliteral(<html><body bgcolor=#800><h1>Error!<hr>Check DevTools for http code or more details.)rawliteral";
+const char a_css[] PROGMEM = R"rawliteral(html{max-width:35ch;margin:auto;font-size:150%;color:orange;}a:link,a:visited,a:hover,a:active{color:#add8e6; text-decoration:none;}h1{color:#90ee90;text-decoration:none;}body{background-color:#1E1E1E;})rawliteral";
+const char theme_html[] PROGMEM = R"rawliteral(<meta content="width=device-width,initial-scale=1"name="viewport"><link href="a.css"rel="stylesheet"><center><h1>Theme Upload</h1><hr><form method="POST" action="/fup" enctype="multipart/form-data"><input type="file" name="file"><br><input type="submit" value="Upload"></form>)rawliteral";
 
 IRrecv irrecv(recvPin);
 decode_results results;
@@ -89,10 +96,12 @@ AsyncWebServer server(80);
 DNSServer dnsServer;
 Tar<FS> tar(&SPIFFS);
 
-//int rboot = 1;
-//int winset = 20;
-//int eeprommax = 10;
-double nms=1000;           //<<<<<<<<<<<<<<<<<------------------------
+//String aaaa2;
+
+// int rboot = 1;
+// int winset = 20;
+// int eeprommax = 10;
+double nms = 1000;  //<<<<<<<<<<<<<<<<<------------------------
 
 int chout1 = -1;
 int chout2 = -1;
@@ -102,7 +111,7 @@ int chout5 = -1;
 int atx = -1;
 int adc = -1;
 int statusled = LED_BUILTIN;
-String webui="dev";
+String webui = "dev";
 
 struct control {
     struct btns {
@@ -117,11 +126,34 @@ struct control {
     int irbskp;
 } ctrl;
 
+struct scriptinfo {
+    File file;
+    int meta_chnr;
+    // int current_line;
+    int pbegin;
+    int loopbegin;
+    int loopcount;
+    unsigned long resumeMillis = 0;
+    bool running = false;
+    int oldbr[6];
+    String path;
+} script;
+
 unsigned long irtime, lastir, wltim, lastfade, cron1, lastsave, vloop[30], cron2, lastwlscan, lastbrms, finbrms;
-int sel, diynr=0, chnr = 0, anw = 1, lastbr[6], wltimeout, raw, calib[6], savetim, persistbr[6], targetbr[6], lasttarget[6], adc_val, fadetick, ntik, vl, fadetype=1;
+int sel, diynr = 0, chnr = 0, anw = 1, lastbr[6], wltimeout, raw, calib[6], savetim, persistbr[6], targetbr[6], lasttarget[6], adc_val, fadetick, ntik, vl, fadetype = 1;
 double speed[6], currentbr[6];
-//float adc_val;
-bool wlconf_started, setup_ok, irhold=0, start_noti, brichanged;
+// float adc_val;
+bool wlconf_started, setup_ok, irhold = 0, start_noti, brichanged;
+
+String answ = "";
+int spamvar;
+
+// int initialBrightness[6]; // Initialize with current brightness levels
+// float currentbr[6], speed[6];
+// bool fading = false;
+//  unsigned long startMillis;
+//  unsigned long endMillis;
+//  const unsigned long duration = 1000; //
 
 void diyedit(int num);
 void diyload(int num);
@@ -139,7 +171,6 @@ void diyload(int num);
 //     fadetype=1;
 //     lastbrms=millis();
 
-
 //     // if(fadetype==1) { // new fading type using speed formula speed=tick/(current-target)
 //     //     for(int i=0; i<=chnr; i++) {
 //     //         speed[i]=fadetick/(currentbr[i]-target[i]);
@@ -155,14 +186,157 @@ void diyload(int num);
 //     //     }
 //     // }
 // }
-int needs_update() {
-    return 0;                       // for debug purposes, never save brightness to disk
-    for(int i=0; i<=chnr; i++) {
-        if(targetbr[i]!=persistbr[i]) {
-            return 1;
+
+void scriptEnd() {
+    TelnetPrint.println("Script end");
+    script.file.close();
+    script.running = false;
+    script.resumeMillis = 0;
+    script.loopbegin = 0;
+    script.loopcount = 0;
+    script.pbegin = 0;
+    script.path = "0";
+
+    for (int i = 0; i <= chnr; i++) {
+        targetbr[i]=script.oldbr[i];
+    }
+
+}
+
+void scriptBegin(String path) {
+    if(!SPIFFS.exists(path)) {
+        TelnetPrint.println("Script file not found");
+        return;
+    }
+    if(script.running) {
+        scriptEnd();
+    }
+    script.path = path;
+    TelnetPrint.println("Script begin reading metadata for: " + path);
+
+    for (int i = 0; i <= chnr; i++) {
+        targetbr[i]=script.oldbr[i];
+    }
+
+    script.file = SPIFFS.open(path, "r");
+    String line = script.file.readStringUntil('\n');
+    switch (line[0]) {
+    case 'N':
+        script.meta_chnr = line[1] - '0';
+        break;
+    }
+    script.running = true;
+    TelnetPrint.println("Script begin done");
+}
+
+void scriptRunner() {
+    //maybe implement looping and nesting in this LFTA style by multyplying each operation's importance
+    String line = script.file.readStringUntil('\n');
+    TelnetPrint.println(line);
+
+    switch (line[0]) {
+    case 'F':
+        nms = line.substring(1).toInt();
+        break;
+    case 'S': {
+        String s = line.substring(1);
+        int i = 0;
+        int j = 0;
+        while (s.indexOf(',', i) != -1) {
+            targetbr[j] = s.substring(i, s.indexOf(',', i)).toInt();
+            i = s.indexOf(',', i) + 1;
+            j++;
+        }
+        targetbr[j] = s.substring(i).toInt();
+        break;
+    }
+    case 'C': {
+        String s = line.substring(1);
+        int i = s.indexOf(',');
+        targetbr[s.substring(0, i).toInt()] = s.substring(i + 1).toInt();
+        break;
+    }
+    case 'P': {
+        TelnetPrint.print("P found, stored position: ");
+        String s = line.substring(1);
+        int i = s.toInt();
+        script.pbegin = script.file.position();
+        TelnetPrint.println(script.pbegin);
+        break;
+    }
+    case 'Q': {
+        TelnetPrint.println("Q found seeking to P");
+        String s = line.substring(1);
+        int i = s.toInt();
+        script.file.seek(script.pbegin);
+        TelnetPrint.println("Seek to P done");
+        break;
+    }
+    case 'L': {
+        TelnetPrint.print("L found, storing position: ");
+        String s = line.substring(1);
+        script.loopbegin = script.file.position();
+        TelnetPrint.println(script.loopbegin);
+        TelnetPrint.print("Loop count: ");
+        script.loopcount = s.toInt();
+        TelnetPrint.println(script.loopcount);
+        break;
+    }
+    case 'O': {
+        if(script.loopcount > 0) {
+            script.file.seek(script.loopbegin);
+            script.loopcount--;
+            TelnetPrint.print("Loops remaining:");
+            TelnetPrint.println(script.loopcount);
+            break;
+        } else {
+            TelnetPrint.print("End loop: ");
+            TelnetPrint.println(script.loopcount);
+            break;
         }
     }
+    case 'W': {
+        TelnetPrint.print("W suspending until: ");
+        String s = line.substring(1);
+        script.resumeMillis = millis() + s.toInt() * 10;
+        TelnetPrint.println(script.resumeMillis);
+        break;
+    }
+    case 'R': {
+        TelnetPrint.print("R random number: ");
+        String s = line.substring(1);
+        int i = s.indexOf(',');
+        int j = s.indexOf(',', i + 1);
+        int randomnr = random(s.substring(i + 1, j).toInt(), s.substring(j + 1).toInt());
+        TelnetPrint.println(randomnr);
+        targetbr[s.substring(0, i).toInt()] = randomnr;
+        break;
+    }
+
+    default: {
+        TelnetPrint.print("Unknown command: ");
+        TelnetPrint.println(line);
+        if (line == "") {
+            scriptEnd();
+        }
+        break;
+    }
+    }
+}
+
+int needs_update() {
+    return 0;  // early return for debug purposes, never save brightness to disk
+    if(!script.running) {
+        for (int i = 0; i <= chnr; i++) {
+            if (targetbr[i] != persistbr[i]) {
+                return 1;
+            }
+        }
+    } else {
+        //todo
+    }
     return 0;
+
 }
 
 void btn_loadmap() {
@@ -172,10 +346,10 @@ void btn_loadmap() {
     ctrl.btnmax = file.parseInt();
     ctrl.btnign = file.parseFloat();
     for (int i = 1; i < MAX_BTN; i++) {
-        ctrl.btn[i].button=file.parseInt();
-        ctrl.btn[i].function=file.parseInt();
-        if(!file.available()) {
-            ctrl.btn[i+1].button=-1;
+        ctrl.btn[i].button = file.parseInt();
+        ctrl.btn[i].function = file.parseInt();
+        if (!file.available()) {
+            ctrl.btn[i + 1].button = -1;
             break;
         }
     }
@@ -184,13 +358,12 @@ void btn_loadmap() {
 
 // Look up the function assigned to a button
 int btn_lookup(int btn) {
-    // Check if the button is in the btable array
     TelnetPrint.println("BTN Lookup");
-    for (int i = 1; i <= MAX_BTN; i++) {
+    for (int i = 1; i <= MAX_BTN; i++) {  // Check if the button is in the btable array
         if (btn > ctrl.btn[i].button - BTOL && btn < ctrl.btn[i].button + BTOL) {
             return ctrl.btn[i].function;
         }
-        if(ctrl.btn[i].button == -1) {
+        if (ctrl.btn[i].button == -1) {
             return 0;
         }
         // If the button was not found in the btable array, search the file
@@ -198,9 +371,8 @@ int btn_lookup(int btn) {
             TelnetPrint.println("BTN Lookup file");
 
             File file = SPIFFS.open("/map.btn", "r");
-            file.seek(2*MAX_BTN*sizeof(int));       //seek the file, there is no need to read again what we already have in ram
-            // Seek to the first byte of the 33rd entry in the file
-//            file.seek(MAX_BTN * 2, SeekSet);
+            file.seek(2 * MAX_BTN * sizeof(int));  // seek the file, there is no need to read again what we already have in ram
+            // needs testing
 
             // Search the file for the button
             for (int i = MAX_BTN; i < ctrl.btnmax; i++) {
@@ -232,9 +404,9 @@ void ir_loadmap() {
     ctrl.btnmax = file.parseInt();
     ctrl.btnign = file.parseFloat();
     for (int i = 1; i < MAX_IR; i++) {
-        ctrl.btn[i].button=file.parseInt();
-        ctrl.btn[i].function=file.parseInt();
-        if(!file.available()) {
+        ctrl.btn[i].button = file.parseInt();
+        ctrl.btn[i].function = file.parseInt();
+        if (!file.available()) {
             break;
         }
     }
@@ -255,8 +427,10 @@ int ir_lookup(int btn) {
         if (i == MAX_IR && ctrl.irbmax > MAX_IR) {
             File file = SPIFFS.open("/map.ir", "r");
             TelnetPrint.println("IR Lookup file");
-            // Seek to the first byte of the 33rd entry in the file
-            file.seek(MAX_IR * 2, SeekSet);
+
+            // needs testing and correct size calculation
+
+            // file.seek(2*MAX_IR*sizeof(int));
 
             // Search the file for the button
             for (int i = MAX_IR; i < ctrl.irbmax; i++) {
@@ -300,7 +474,7 @@ int ir_lookup(int btn) {
 // }
 // }
 void notFound(AsyncWebServerRequest *request) {
-    request->send(404, "text/html", error_html);
+    request->redirect("/");
 }
 void handleUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
     // from https://github.com/smford/esp32-asyncwebserver-fileupload-example/
@@ -317,17 +491,17 @@ void handleUpload(AsyncWebServerRequest *request, String filename, size_t index,
 
     if (final) {
         request->_tempFile.close();
-        File file = SPIFFS.open("/t/"+ filename, "r");
+        File file = SPIFFS.open("/t/" + filename, "r");
         TelnetPrint.println("open /t/");
-        if(file) {
-            tar.open((Stream*)&file);		// Pass source file as Stream to Tar object
+        if (file) {
+            tar.open((Stream *)&file);  // Pass source file as Stream to Tar object
             tar.dest("/w/");
             tar.extract();
             file.close();
             TelnetPrint.println("untar ok");
             TelnetPrint.println(filename);
-            //SPIFFS.rmdir("/t/");
-            SPIFFS.remove("/t/"+ filename);
+            // SPIFFS.rmdir("/t/");
+            SPIFFS.remove("/t/" + filename);
             TelnetPrint.println("Removed tar");
             TelnetPrint.println(filename);
             Dir dir = SPIFFS.openDir("/");
@@ -340,7 +514,7 @@ void handleUpload(AsyncWebServerRequest *request, String filename, size_t index,
     }
 }
 
-void sysreboot(int mode=0) {
+void sysreboot(int mode = 0) {
     switch (mode) {
     case 1:
         Serial.println("[SYS] Rebooting now! (UART download mode)");
@@ -362,64 +536,64 @@ void sysreboot(int mode=0) {
     }
 }
 
-void awrite(int mode=0) {
-    //analog write lol
-    // switch (mode) {
-    // case 1: {           //raw write: currentbr has values
-    //     //TelnetPrint.println("[AWRITE] Raw write");
-    //     //analogWriteRange(targetbr[0]);
-    //     analogWriteResolution(anw);
-    //     analogWrite(chout1, currentbr[1]);
-    //     analogWrite(chout2, currentbr[2]);
-    //     analogWrite(chout3, currentbr[3]);
-    //     analogWrite(chout4, currentbr[4]);
-    //     analogWrite(chout5, currentbr[5]);
-    //     break;
-    // }
-    // // default: {          //percent write: 0 has brightness value, others have % of brightness
-    // //     // TelnetPrint.println("[AWRITE] Percent write");
-    // //     analogWriteResolution(anw);
-    // //     analogWrite(chout1, currentbr[0] * currentbr[1] / 1024);
-    // //     analogWrite(chout2, currentbr[0] * currentbr[2] / 1024);
-    // //     analogWrite(chout3, currentbr[0] * currentbr[3] / 1024);
-    // //     analogWrite(chout4, currentbr[0] * currentbr[4] / 1024);
-    // //     analogWrite(chout5, currentbr[0] * currentbr[5] / 1024);
-    // //     break;
-    // // }
-    // default: {
+void awrite(int mode = 0) {
+    // analog write lol
+    //  switch (mode) {
+    //  case 1: {           //raw write: currentbr has values
+    //      //TelnetPrint.println("[AWRITE] Raw write");
+    //      //analogWriteRange(targetbr[0]);
+    //      analogWriteResolution(anw);
+    //      analogWrite(chout1, currentbr[1]);
+    //      analogWrite(chout2, currentbr[2]);
+    //      analogWrite(chout3, currentbr[3]);
+    //      analogWrite(chout4, currentbr[4]);
+    //      analogWrite(chout5, currentbr[5]);
+    //      break;
+    //  }
+    //  // default: {          //percent write: 0 has brightness value, others have % of brightness
+    //  //     // TelnetPrint.println("[AWRITE] Percent write");
+    //  //     analogWriteResolution(anw);
+    //  //     analogWrite(chout1, currentbr[0] * currentbr[1] / 1024);
+    //  //     analogWrite(chout2, currentbr[0] * currentbr[2] / 1024);
+    //  //     analogWrite(chout3, currentbr[0] * currentbr[3] / 1024);
+    //  //     analogWrite(chout4, currentbr[0] * currentbr[4] / 1024);
+    //  //     analogWrite(chout5, currentbr[0] * currentbr[5] / 1024);
+    //  //     break;
+    //  // }
+    //  default: {
     analogWriteResolution(anw);
-    analogWrite(chout1, map(currentbr[1],0,255,0,currentbr[0]));
-    analogWrite(chout2, map(currentbr[2],0,255,0,currentbr[0]));
-    analogWrite(chout3, map(currentbr[3],0,255,0,currentbr[0]));
-    analogWrite(chout4, map(currentbr[4],0,255,0,currentbr[0]));
-    analogWrite(chout5, map(currentbr[5],0,255,0,currentbr[0]));
+    analogWrite(chout1, map(map(currentbr[1], 0, 256, 0, calib[1]), 0, 256, 0, currentbr[0]));
+    analogWrite(chout2, map(map(currentbr[2], 0, 256, 0, calib[2]), 0, 256, 0, currentbr[0]));
+    analogWrite(chout3, map(map(currentbr[3], 0, 256, 0, calib[3]), 0, 256, 0, currentbr[0]));
+    analogWrite(chout4, map(map(currentbr[4], 0, 256, 0, calib[4]), 0, 256, 0, currentbr[0]));
+    analogWrite(chout5, map(map(currentbr[5], 0, 256, 0, calib[5]), 0, 256, 0, currentbr[0]));
     // }
     // }
 }
 
-void notifade(int ldiy=9, int tick=20) {                //blocking function
+void notifade(int ldiy = 9, int tick = 20) {  // blocking function
 
-    int noti[chnr],done=0;
-    for(int i=0; i<=chnr; i++) {
-        noti[i]=targetbr[i];
+    int noti[chnr], done = 0;
+    for (int i = 0; i <= chnr; i++) {
+        noti[i] = targetbr[i];
     }
     TelnetPrint.println(ldiy);
     TelnetPrint.println(tick);
     diyload(ldiy);
-    while(done<=chnr+1) {
+    while (done <= chnr + 1) {
         // if(micros() - lastfade >= 2) {
-        for(int i=0; i<=chnr; i++) {
+        for (int i = 0; i <= chnr; i++) {
             done++;
-            if (currentbr[0] !=0) {
+            if (currentbr[0] != 0) {
                 digitalWrite(atx, HIGH);
             } else {
                 digitalWrite(atx, LOW);
             }
-            if(targetbr[i]>currentbr[i]) {
+            if (targetbr[i] > currentbr[i]) {
                 currentbr[i]++;
-                done=0;
+                done = 0;
             }
-            if(targetbr[i]<currentbr[i]) {
+            if (targetbr[i] < currentbr[i]) {
                 currentbr[i]--;
             }
             awrite(anw);
@@ -427,24 +601,24 @@ void notifade(int ldiy=9, int tick=20) {                //blocking function
         //     lastfade=micros();
         // }
     }
-    for(int i=0; i<=chnr; i++) {
-        targetbr[i]=noti[i];
+    for (int i = 0; i <= chnr; i++) {
+        targetbr[i] = noti[i];
     }
-    done=0;
-    while(done<=chnr+1) {
+    done = 0;
+    while (done <= chnr + 1) {
         // if(micros() - lastfade >= 2) {
-        for(int i=0; i<=chnr; i++) {
+        for (int i = 0; i <= chnr; i++) {
             done++;
-            if (currentbr[0] !=0) {
+            if (currentbr[0] != 0) {
                 digitalWrite(atx, HIGH);
             } else {
                 digitalWrite(atx, LOW);
             }
-            if(targetbr[i]>currentbr[i]) {
+            if (targetbr[i] > currentbr[i]) {
                 currentbr[i]++;
-                done=0;
+                done = 0;
             }
-            if(targetbr[i]<currentbr[i]) {
+            if (targetbr[i] < currentbr[i]) {
                 currentbr[i]--;
             }
             awrite(anw);
@@ -537,10 +711,10 @@ void notifade(int ldiy=9, int tick=20) {                //blocking function
 // }
 
 void wlconf2() {
-    wlconf_started=true;
+    wlconf_started = true;
     WiFi.persistent(0);
-    File jsnwlan = SPIFFS.open("/wlan.json","r");
-    StaticJsonDocument<320> doc;
+    File jsnwlan = SPIFFS.open("/wlan.json", "r");
+    JsonDocument doc;
     DeserializationError error = deserializeJson(doc, jsnwlan);
     if (error) {
         Serial.print(F("[WLAN] JSON deserializeJson() failed: "));
@@ -551,40 +725,41 @@ void wlconf2() {
         WiFi.softAP("esp_LightCtl", "987654321");
     } else {
         switch (doc["wlm"].as<int>()) {
-        case 1: {                               //ap mode
+        case 1: {  // ap mode
             WiFi.mode(WIFI_AP);
-            WiFi.softAP(doc["apssid"]|"esp_LightCtl", doc["appsk"]|"987654321");
+            WiFi.softAP(doc["apssid"] | "esp_LightCtl", doc["appsk"] | "987654321");
+            dnsServer.start(53, "*", WiFi.softAPIP());
             break;
         }
-        case 2: {                               //client mode
-            if(WiFi.SSID().c_str() != doc["ssid"] || WiFi.psk().c_str()!=doc["psk"]) {
+        case 2: {  // client mode
+            if (WiFi.SSID().c_str() != doc["ssid"] || WiFi.psk().c_str() != doc["psk"]) {
                 WiFi.disconnect();
                 WiFi.mode(WIFI_STA);
-                WiFi.begin(doc["ssid"], doc["psk"]|"");
+                WiFi.begin(doc["ssid"], doc["psk"] | "");
             }
             break;
         }
-        case 3: {                               //ap + client mode
-            if(WiFi.SSID().c_str() != doc["ssid"] || WiFi.psk().c_str()!=doc["psk"] || WiFi.softAPSSID().c_str() != doc["apssid"] || WiFi.softAPPSK().c_str() != doc["appsk"]) {
+        case 3: {  // ap + client mode
+            if (WiFi.SSID().c_str() != doc["ssid"] || WiFi.psk().c_str() != doc["psk"] || WiFi.softAPSSID().c_str() != doc["apssid"] || WiFi.softAPPSK().c_str() != doc["appsk"]) {
                 WiFi.disconnect();
                 WiFi.mode(WIFI_AP_STA);
-                WiFi.begin(doc["ssid"], doc["psk"]|"");
-                WiFi.softAP(doc["apssid"]|"esp_LightCtl", doc["appsk"]|"987654321");
+                WiFi.begin(doc["ssid"], doc["psk"] | "");
+                WiFi.softAP(doc["apssid"] | "esp_LightCtl", doc["appsk"] | "987654321");
             }
+            dnsServer.start(53, "*", WiFi.softAPIP());
             break;
         }
-
         }
     }
     jsnwlan.close();
 }
 
+
 void startsrv() {
     Serial.println("[SETUP] Stopping webserver (end)");
     TelnetPrint.println("[SETUP] Stopping webserver (end)");
     server.end();
-    Serial.println("[SETUP] Starting webserver on /");
-    TelnetPrint.println("[SETUP] Starting webserver on /");
+
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
         if(webui=="dev") {
             request->send_P(200, "text/html", index_html);
@@ -593,33 +768,25 @@ void startsrv() {
         }
     });
 
-    Serial.println("[SETUP] Starting webserver on /a.css");
-    TelnetPrint.println("[SETUP] Starting webserver on /a.css");
     server.on("/a.css", HTTP_GET, [](AsyncWebServerRequest *request) {
         request->send_P(200, "text/css", a_css);
     });
 
-    Serial.println("[SETUP] Starting webserver on /rbt");
-    TelnetPrint.println("[SETUP] Starting webserver on /rbt");
     server.on("/rbt", HTTP_GET, [](AsyncWebServerRequest *request) {
         request->send_P(200, "text/html", success_html);
         delay(500);
         sysreboot();
     });
 
-    Serial.println("[SETUP] Starting webserver on /reset");
-    TelnetPrint.println("[SETUP] Starting webserver on /reset");
     server.on("/reset", HTTP_GET, [](AsyncWebServerRequest *request) {
         request->send_P(200, "text/html", reset_html);
     });
 
-    Serial.println("[SETUP] Starting webserver on /wipe");
-    TelnetPrint.println("[SETUP] Starting webserver on /wipe");
     server.on("/wipe", HTTP_POST, [](AsyncWebServerRequest *request) {
         if(request->hasArg("meta_fact")) {
             File jsnw = SPIFFS.open("/cfg.json", "w");
-            TelnetPrint.println("open cfg.json");
-            StaticJsonDocument<256> doc;
+            TelnetPrint.println("open cfg.json WRITE");
+            JsonDocument doc;
             doc["meta"]["fact"]=request->arg("meta_fact");
             serializeJson(doc, jsnw);
             jsnw.close();
@@ -634,19 +801,15 @@ void startsrv() {
         }
     });
 
-    Serial.println("[SETUP] Starting webserver on /wlcfg");
-    TelnetPrint.println("[SETUP] Starting webserver on /wlcfg");
     server.on("/wlcfg", HTTP_GET, [](AsyncWebServerRequest *request) {
         request->send_P(200, "text/html", wlan_html);
     });
 
-    Serial.println("[SETUP] Starting webserver on /wlset");
-    TelnetPrint.println("[SETUP] Starting webserver on /wlset");
     server.on("/wlset", HTTP_POST, [](AsyncWebServerRequest *request) {
         if (request->hasArg("wlm") && request->hasArg("ssid") && request->hasArg("psk") && request->hasArg("apssid") && request->hasArg("appsk") && request->hasArg("t")) {
             File jsnw = SPIFFS.open("/wlan.json", "w");
-            TelnetPrint.println("open wlan.json");
-            StaticJsonDocument<320> doc; //320
+            TelnetPrint.println("open wlan.json WRITE");
+            JsonDocument doc; //320
             doc["wlm"]=request->arg("wlm");
             doc["ssid"]=request->arg("ssid");
             doc["psk"]=request->arg("psk");
@@ -669,7 +832,7 @@ void startsrv() {
             lastwlscan = millis();
             request->send_P(500, "text/plain", "Call again in 3 seconds");
         } else {
-            DynamicJsonDocument doc(2048);
+            JsonDocument doc;
             String stat;
             // Add the scanned networks to the JSON document
             for (int i = 0; i < WiFi.scanComplete(); i++) {
@@ -690,12 +853,21 @@ void startsrv() {
         while (dir.next()) {
             // stat += concat(dir.fileName().indexOf('/', 1);
             // stat += filename.substring(0,)
-            if(dir.fileName().endsWith(".i")){
+            if(dir.fileName().endsWith(".i")) {
                 stat += dir.fileName().substring(dir.fileName().lastIndexOf('/') + 1, dir.fileName().length() - 2) + "\n"; //extract the exact filename without path of the theme info file
             }
             TelnetPrint.println(dir.fileName());
         }
         request->send_P(200, "text/plain", stat.c_str());
+    });
+    server.on("/ls", HTTP_GET, [](AsyncWebServerRequest *request) {
+        String stat;
+        String filename;
+        Dir dir = SPIFFS.openDir("/");
+        while (dir.next()) {
+            TelnetPrint.println(dir.fileName());
+        }
+        request->send_P(200, "text/plain", "ok");
     });
     server.on("/rmaui", HTTP_GET, [](AsyncWebServerRequest *request) {
         Dir dir = SPIFFS.openDir("/w/");
@@ -704,23 +876,23 @@ void startsrv() {
             TelnetPrint.println(dir.fileName());
             SPIFFS.remove(dir.fileName());
         }
-        
+
         request->send_P(200, "text/plain", "Removed all themes");
     });
     server.on("/ui", HTTP_POST, [](AsyncWebServerRequest *request) {
-        if(request->hasArg("web")){
+        if(request->hasArg("web")) {
             File jsnweb = SPIFFS.open("/web.json", "w");
-            TelnetPrint.println("open web.json");
-            StaticJsonDocument<50> doc;
+            TelnetPrint.println("open web.json WRITE");
+            JsonDocument doc;
             Dir dir = SPIFFS.openDir("/w/");
-            
+
             while (dir.next()) {
-                if(dir.fileName().endsWith(request->arg("web")+".i")){
+                if(dir.fileName().endsWith(request->arg("web")+".i")) {
                     File tinfo=SPIFFS.open(dir.fileName(), "r");
                     doc["web"] = tinfo.readString();
                     tinfo.close();
                     TelnetPrint.printf(doc["web"]);
-                }   
+                }
             }
             serializeJson(doc, jsnweb);
             jsnweb.close();
@@ -739,8 +911,8 @@ void startsrv() {
         Serial.println("[SETUP] /save Opening cfg.json w");
         TelnetPrint.println("[SETUP] /save Opening cfg.json w");
         File jsncfg = SPIFFS.open("/cfg.json", "w");
-        TelnetPrint.println("open cfg.json");
-        StaticJsonDocument<381> doc;
+        TelnetPrint.println("open cfg.json WRITE");
+        JsonDocument doc;
         if(request->hasArg("hw_c1"))
             doc["hw"]["c1"] = request->arg("hw_c1");
         if(request->hasArg("hw_c2"))
@@ -801,32 +973,31 @@ void startsrv() {
     server.on("/shade", HTTP_POST, [](AsyncWebServerRequest *request) {
         Serial.println("[WEB] /shade");
         TelnetPrint.println("[WEB] /shade");
-        raw=0;
-        if(request->hasArg("ch1"))
-            targetbr[1]=request->arg("ch1").toInt();
-        if(request->hasArg("ch2"))
-            targetbr[2]=request->arg("ch2").toInt();
-        if(request->hasArg("ch3"))
-            targetbr[3]=request->arg("ch3").toInt();
-        if(request->hasArg("ch4"))
-            targetbr[4]=request->arg("ch4").toInt();
-        if(request->hasArg("ch5"))
-            targetbr[5]=request->arg("ch5").toInt();
-        if(request->hasArg("ch0"))
-            targetbr[0]=request->arg("ch0").toInt();
-        lastsave=millis();
-        //setbri();
-        // if(request->hasArg("p") && request->arg("p").toInt()==1) {
-        //     TelnetPrint.println("[WEB] /shade Writing to file");
-        //     File last = SPIFFS.open("/last", "w");
-        //     for(int i=0; i<=chnr; i++) {
-        //         last.println(targetbr[i]);
-        //     }
-        //     last.println(raw);
-        //     last.close();
-        // }
+        raw = 0;
+        if (request->hasArg("ch1"))
+            targetbr[1] = request->arg("ch1").toInt();
+        if (request->hasArg("ch2"))
+            targetbr[2] = request->arg("ch2").toInt();
+        if (request->hasArg("ch3"))
+            targetbr[3] = request->arg("ch3").toInt();
+        if (request->hasArg("ch4"))
+            targetbr[4] = request->arg("ch4").toInt();
+        if (request->hasArg("ch5"))
+            targetbr[5] = request->arg("ch5").toInt();
+        if (request->hasArg("ch0"))
+            targetbr[0] = request->arg("ch0").toInt();
+        lastsave = millis();
+        // setbri();
+        //  if(request->hasArg("p") && request->arg("p").toInt()==1) {
+        //      TelnetPrint.println("[WEB] /shade Writing to file");
+        //      File last = SPIFFS.open("/last", "w");
+        //      for(int i=0; i<=chnr; i++) {
+        //          last.println(targetbr[i]);
+        //      }
+        //      last.println(raw);
+        //      last.close();
+        //  }
         request->send_P(200, "text/html", success_html);
-
     });
     server.on("/pick2", HTTP_GET, [](AsyncWebServerRequest *request) {
         request->send_P(200, "text/html", picker2_html);
@@ -853,13 +1024,18 @@ void startsrv() {
 
     server.on("/stat", HTTP_GET, [](AsyncWebServerRequest *request) {
         char stat[72];
-        DynamicJsonDocument doc(130);
+        JsonDocument doc;
 
         for(int i=0; i<=chnr; i++) {
             doc["c"+ std::to_string(i)]=targetbr[i];
         }
         serializeJson(doc, stat);
         request->send_P(200, "application/json", stat);
+    });
+
+    server.on("/debug", HTTP_GET, [](AsyncWebServerRequest *request) {
+        spamvar=1;
+        request->send_P(200, "text/plain", "Debug info printed to Telnet");
     });
 
     server.on("/cfg", HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -961,11 +1137,11 @@ void startsrv() {
     });
     server.serveStatic("/w/", SPIFFS, "/w/");
 
-// api version 1
-// GET
+    // api version 1
+    // GET
     server.on("/api1/stat", HTTP_GET, [](AsyncWebServerRequest *request) {
         char stat[72];
-        DynamicJsonDocument doc(130);
+        JsonDocument doc;
 
         for(int i=0; i<=chnr; i++) {
             doc["c"+ std::to_string(i)]=targetbr[i];
@@ -979,7 +1155,7 @@ void startsrv() {
     server.on("/api1/cfg", HTTP_GET, [](AsyncWebServerRequest *request) {
         request->send(SPIFFS, "/cfg.json", "application/json");
     });
-// POST
+    // POST
     server.on("/api1/shade", HTTP_POST, [](AsyncWebServerRequest *request) {
         raw=0;
         if(request->hasArg("ch1"))
@@ -1049,7 +1225,18 @@ void startsrv() {
         // }
         request->send_P(200, "text/plain", "ok");
     });
-// end apiv1
+    // end apiv1
+
+    server.on("/script", HTTP_GET, [](AsyncWebServerRequest *request) {
+        if(request->hasArg("p")) {
+            String tmp=request->arg("p");
+            scriptBegin(tmp);
+        } else {
+            scriptEnd();
+            request->send_P(500, "text/plain", "script end");
+        }
+        request->send_P(200, "text/plain", "ok");
+    });
 
     Serial.println("[SETUP] Starting webserver (begin)");
     TelnetPrint.println("[SETUP] Starting webserver (begin)");
@@ -1063,7 +1250,7 @@ void setup() {
     Serial.setTimeout(10000);
     // Serial.println("[SYS] Starting...\n[SYS] Send 'd' in less then 3 sec to boot in UART download mode or 'w' to wipe SPIFFS partition.");
     // TelnetPrint.println("[SYS] Starting...\n[SYS] Send 'd' in less then 3 sec to boot in UART download mode or 'w' to wipe SPIFFS partition.");
-    //delay(3100);
+    // delay(3100);
     while (Serial.available() > 0) {
         switch (Serial.readStringUntil('\n').charAt(0)) {
         case 'd':
@@ -1092,7 +1279,7 @@ void setup() {
     } else {
         // Serial.println("[SPIFFS] Mount OK.");
         // TelnetPrint.println("[SPIFFS] Mount OK.");
-        //WiFi.persistent(true);
+        // WiFi.persistent(true);
         // fs::FSInfo fs_info;
         // SPIFFS.info(fs_info);
         // Serial.print("[SYS] ESP flash size: ");
@@ -1113,20 +1300,20 @@ void setup() {
         // TelnetPrint.println(fs_info.usedBytes/1000);
 
         wlconf2();
-        //startsrv();
+        // startsrv();
 
-        if(!SPIFFS.exists("/cfg.json")) {
+        if (!SPIFFS.exists("/cfg.json")) {
             TelnetPrint.begin();
             Serial.println("[SPIFFS] Configuration does not exist. Pausing setup.");
             TelnetPrint.println("[SPIFFS] Configuration does not exist. Pausing setup.");
             // File jsnw = SPIFFS.open("/cfg.json", "w");
             // StaticJsonDocument<256> doc;
-            //startsrv();
-            //wlconf2();
+            // startsrv();
+            // wlconf2();
             dnsServer.start(53, "*", WiFi.softAPIP());
             startsrv();
-            setup_ok=0;
-            while (setup_ok !=1 ) {
+            setup_ok = 0;
+            while (setup_ok != 1) {
                 dnsServer.processNextRequest();
                 delay(1000);
             }
@@ -1136,7 +1323,7 @@ void setup() {
         } else {
             File jsnld = SPIFFS.open("/cfg.json", "r");
             TelnetPrint.println("open cfg.json");
-            StaticJsonDocument<445> doc;
+            JsonDocument doc;
             DeserializationError error = deserializeJson(doc, jsnld);
             if (error) {
                 Serial.print(F("[JSON] deserializeJson() failed: "));
@@ -1145,10 +1332,10 @@ void setup() {
                 TelnetPrint.println(error.f_str());
                 Serial.println(F("[SPIFFS] Moving broken file to: /cfg.json.broken"));
                 TelnetPrint.println(F("[SPIFFS] Moving broken file to: /cfg.json.broken"));
-                if(SPIFFS.exists("/cfg.json.broken")) {
+                if (SPIFFS.exists("/cfg.json.broken")) {
                     SPIFFS.remove("/cfg.json.broken");
                 }
-                SPIFFS.rename("/cfg.json","/cfg.json.broken");
+                SPIFFS.rename("/cfg.json", "/cfg.json.broken");
                 sysreboot(0);
                 return;
             }
@@ -1203,32 +1390,32 @@ void setup() {
                 SPIFFS.format();
                 sysreboot(0);
                 // stpwzd();
-                //doc["meta"]["fact"] = 0; // factory mode off
+                // doc["meta"]["fact"] = 0; // factory mode off
                 // fact = 0;
             }
-            //analogWriteRange(doc["sw"]["anw"]);
+            // analogWriteRange(doc["sw"]["anw"]);
             anw = doc["sw"]["anw"];
             diynr = doc["sw"]["dnr"];
-            calib[0]= doc["sw"]["b0"];
-            calib[1]= doc["sw"]["b1"];
-            calib[2]= doc["sw"]["b2"];
-            calib[3]= doc["sw"]["b3"];
-            calib[4]= doc["sw"]["b4"];
-            calib[5]= doc["sw"]["b5"];
+            calib[0] = doc["sw"]["b0"];
+            calib[1] = doc["sw"]["b1"];
+            calib[2] = doc["sw"]["b2"];
+            calib[3] = doc["sw"]["b3"];
+            calib[4] = doc["sw"]["b4"];
+            calib[5] = doc["sw"]["b5"];
             savetim = doc["sw"]["rbt"];
             fadetick = doc["sw"]["tik"];
-//            webui = doc["web"]|"dev"; //.as<String>();
+            webui = doc["web"] | "dev";  //.as<String>();
 
             // const int chnr = doc["sw"]["chnr"];
 
             // dbg_cfgver=doc["meta"]["cfgver"];
             jsnld.close();
         }
-        if(SPIFFS.exists("/web.json")){
-            File jsnweb = SPIFFS.open("/web.json","r");
-            StaticJsonDocument<50> doc;
-            DeserializationError error = deserializeJson(doc, jsnweb);
-            webui = doc["web"].as<String>();
+        if (SPIFFS.exists("/web.json")) {
+            File jsnweb = SPIFFS.open("/web.json", "r");
+            JsonDocument doc;
+            //            DeserializationError error = deserializeJson(doc, jsnweb);
+            //            webui = doc["web"].as<String>();
             jsnweb.close();
         }
         startsrv();
@@ -1240,11 +1427,11 @@ void setup() {
     Serial.println("[SYS] Setting up OTA");
     TelnetPrint.println("[SYS] Setting up OTA");
 
-    ArduinoOTA.onStart([]() {       //arduino ota example sketch
+    ArduinoOTA.onStart([]() {  // arduino ota example sketch
         String type;
         if (ArduinoOTA.getCommand() == U_FLASH) {
             type = "sketch";
-        } else { // U_FS
+        } else {  // U_FS
             type = "filesystem";
         }
         SPIFFS.end();
@@ -1254,49 +1441,81 @@ void setup() {
     });
     ArduinoOTA.begin();
 
-    File last = SPIFFS.open("/last", "r");      //restore brightness
+    File last = SPIFFS.open("/last", "r");  // restore brightness and script state
     TelnetPrint.println("open last");
-    for(int i=0; i<=chnr; i++) {
+    for (int i = 0; i <= chnr; i++) {
         targetbr[i] = persistbr[i] = last.parseInt();
     }
-    // raw=last.parseInt();
+    //String t_script = last.readString();
+
     last.close();
+    //aaaa2=t_script;
+    // last = SPIFFS.open("/lscript", "r");
+    // String t_script = last.readStringUntil('\n');
+    // aaaa2=t_script;
+    // if(File f=SPIFFS.open("/lscript","w")){
+    //     f.write("/w/effect1.lsc");
+    //     f.close();
+    // }
+
+    if(File f=SPIFFS.open("/lscript","r")) {
+        scriptBegin(f.readStringUntil('\n'));
+        f.close();
+    }
+    // if(t_script.length() != 0) {
+    //     scriptBegin(t_script);
+    // }
+    // last.close();
+    // raw=last.parseInt();
+
+    // File alast = SPIFFS.open("/lscript", "w");
+    // TelnetPrint.println("open /last WRITE");
+
+
+    //     for (int i = 0; i < chnr; i++) {
+    //         alast.println(targetbr[i]);
+    //         persistbr[i] = targetbr[i];
+    //     }
+    //alast.print("/w/effect1.lsc");
+    //     //alast.println(" ");
+
+
+    // alast.close();
 
     Serial.print("[SYS] Boot completed.\n[SYS] ESP voltage: ");
+
     TelnetPrint.print("[SYS] Boot completed.\n[SYS] ESP voltage: ");
     Serial.println(ESP.getVcc());
     TelnetPrint.println(ESP.getVcc());
-
 }
 
 void fadeto(int fadeval) {
     // fade api
-//     if (fadeval < 0) {
-//         fadeval = 0;
-//     }
-//     if (fadeval > 255) {
-//         fadeval = 255;
-//     }
-//     //  lastbr[0] = fadeval;
-//     for (; currentbr[0] > fadeval; currentbr[0]--) {    //decrease
-//         awrite(0);
-//         delay(2);
-//     }
+    //     if (fadeval < 0) {
+    //         fadeval = 0;
+    //     }
+    //     if (fadeval > 255) {
+    //         fadeval = 255;
+    //     }
+    //     //  lastbr[0] = fadeval;
+    //     for (; currentbr[0] > fadeval; currentbr[0]--) {    //decrease
+    //         awrite(0);
+    //         delay(2);
+    //     }
 
-//     for (; currentbr[0] < fadeval; currentbr[0]++) {    //increase
-//         awrite(0);
-//         delay(2);
-//     }
-
+    //     for (; currentbr[0] < fadeval; currentbr[0]++) {    //increase
+    //         awrite(0);
+    //         delay(2);
+    //     }
 }
 
-void diyedit(int num) {                         // saves the current brightness values in the specified slot then calls diyload() to load and applit.
+void diyedit(int num) {  // saves the current brightness values in the specified slot then calls diyload() to load and apply them.
     File jsndiy = SPIFFS.open("/diy.json", "r");
     TelnetPrint.println("open diy.json");
-    DynamicJsonDocument doc(jsndiy.size()*2 + DIYTSIZE);
-    if(jsndiy) {
+    JsonDocument doc;  // JSON document with twice the size of the file + the size of new entries
+    if (jsndiy) {
         TelnetPrint.println("diyedit spiffs size:");
-        //TelnetPrint.println(jsndiy.size());
+        // TelnetPrint.println(jsndiy.size());
         DeserializationError error = deserializeJson(doc, jsndiy);
         if (error) {
             Serial.print(F("[JSON] deserializeJson() failed: "));
@@ -1306,24 +1525,24 @@ void diyedit(int num) {                         // saves the current brightness 
             // jsndiy.close();
             // SPIFFS.remove("/diy.json");
             // File jsndiy = SPIFFS.open("/diy.json", "w");
-            //return;
+            // return;
         }
     }
     jsndiy.close();
     File jsndiyw = SPIFFS.open("/diy.json", "w");
-    TelnetPrint.println("open diy.json");
-    if(jsndiyw) {
+    TelnetPrint.println("open diy.json WRITE");
+    if (jsndiyw) {
         TelnetPrint.println("diyedit json");
         TelnetPrint.println(num);
         TelnetPrint.println(diynr);
         if (num > 0 && num <= diynr) {
             TelnetPrint.println("diyedit");
-            auto diy ="d"+std::to_string(num);
+            auto diy = "d" + std::to_string(num);
             TelnetPrint.println(diy.c_str());
-            //std::string diy = "d" + std::to_string(num);
-            //doc[diy]["all"] = lastbr[0];  ///////////////////////////////////////////////////////////////////
+            // std::string diy = "d" + std::to_string(num);
+            // doc[diy]["all"] = lastbr[0];  ///////////////////////////////////////////////////////////////////
             for (int i = 0; i <= chnr; i++) {
-                doc[diy]["c" + std::to_string(i)] = lastbr[i]; //////////////////////////////////////////////////////////
+                doc[diy]["c" + std::to_string(i)] = lastbr[i];  //////////////////////////////////////////////////////////
             }
         }
         serializeJson(doc, jsndiyw);
@@ -1335,62 +1554,61 @@ void diyedit(int num) {                         // saves the current brightness 
     irhold = 0;
     diyload(num);
 }
-void diyload(int num) {                         // loads and applies values stored in the specified slot
+void diyload(int num) {  // loads and applies brightness values stored in the specified "slot" inside a file
     File jsndiy = SPIFFS.open("/diy.json", "r");
-    TelnetPrint.println("open diy.json");
-    TelnetPrint.println("diyload spiffs size:");
-    TelnetPrint.println(jsndiy.size()*2+DIYTSIZE);
-    DynamicJsonDocument doc(jsndiy.size()*2+DIYTSIZE);
+    // TelnetPrint.println("open diy.json");
+    // TelnetPrint.println("diyload spiffs size:");
+    // TelnetPrint.println(jsndiy.size()*2+DIYTSIZE);
+    JsonDocument doc;
     DeserializationError error = deserializeJson(doc, jsndiy);
     if (error) {
         Serial.print(F("[JSON] deserializeJson() failed: "));
         TelnetPrint.print(F("[JSON] deserializeJson() failed: "));
         Serial.println(error.f_str());
         TelnetPrint.println(error.f_str());
-        //TelnetPrint.println(F("removed"));
+        // TelnetPrint.println(F("removed"));
         jsndiy.close();
-        //SPIFFS.remove("/diy.json");
+        // SPIFFS.remove("/diy.json");
         return;
     }
     TelnetPrint.println("diyload json");
     TelnetPrint.println(jsndiy.size());
     TelnetPrint.println(irhold);
     if (irhold == 0 && num > 0 && num <= diynr) {
-        //lastbr[0] = currentbr[0];
-        auto diy ="d"+std::to_string(num);
+        // lastbr[0] = currentbr[0];
+        auto diy = "d" + std::to_string(num);
         TelnetPrint.println(diy.c_str());
         TelnetPrint.println("diyload");
-        //diy += std::to_string(num);
+        // diy += std::to_string(num);
         for (int i = 0; i <= chnr; i++) {
             lastbr[i] = currentbr[i];
             Serial.println(lastbr[i]);
-            //TelnetPrint.println(lastbr[i]);
+            // TelnetPrint.println(lastbr[i]);
             Serial.println(i);
             // TelnetPrint.println(i);
-            targetbr[i]=doc[diy]["c" + std::to_string(i)];
+            targetbr[i] = doc[diy]["c" + std::to_string(i)];
             TelnetPrint.println(targetbr[i]);
         }
     }
     // power off
-//     if (num == 0 && pwr == 0) {
-//         for (int i = 1; i <= chnr; i++) {
-// //            currentbr[i] = std::stoi(ini.get("chcfg").get("c"+std::to_string(i)));
-//         }
-//         //fadeto(doc["chcfg"]["pall"]);
-//         pwr = 1;
-//     } else if (num == 0 && pwr == 1) {
-//         for (int i = 0; i <= chnr; i++) {
-//             pwrstate[i] = currentbr[i];
-//         }
-//         fadeto(0);
-//         pwr = 0;
-//     }
+    //     if (num == 0 && pwr == 0) {
+    //         for (int i = 1; i <= chnr; i++) {
+    // //            currentbr[i] = std::stoi(ini.get("chcfg").get("c"+std::to_string(i)));
+    //         }
+    //         //fadeto(doc["chcfg"]["pall"]);
+    //         pwr = 1;
+    //     } else if (num == 0 && pwr == 1) {
+    //         for (int i = 0; i <= chnr; i++) {
+    //             pwrstate[i] = currentbr[i];
+    //         }
+    //         fadeto(0);
+    //         pwr = 0;
+    //     }
     jsndiy.close();
     if (irhold == 1 && (millis() - irtime >= 2500)) {
         diyedit(num);
     }
 }
-
 
 // void irswitch(unsigned int swval ) {
 //     // ir code switch, select channels, brightness
@@ -1520,7 +1738,8 @@ void diyload(int num) {                         // loads and applies values stor
 //     }
 // }
 
-void ftable_ex(int fval ) {
+void ftable_ex(int fval) {  // function that contains and executes all the functions assigned inside a function table
+    // needs heavy modifications to work with current code
     TelnetPrint.println("FTable ex:");
     TelnetPrint.println(fval);
     // ir code switch, select channels, brightness
@@ -1547,20 +1766,17 @@ void ftable_ex(int fval ) {
     }
     case 6: {
         sel++;
-        if(sel>=chnr) {
-            sel=0;
+        if (sel >= chnr) {
+            sel = 0;
         }
     }
     case 7: {
-
     }
     case 8: {
-
     }
     case 9: {
-
     }
-    case 10: { //br +
+    case 10: {  // br +
         Serial.print(" irbru \n");
         TelnetPrint.print(" irbru \n");
         currentbr[sel] = currentbr[sel] + 5;
@@ -1571,7 +1787,7 @@ void ftable_ex(int fval ) {
         }
         break;
     }
-    case 11: { //br -
+    case 11: {  // br -
         Serial.print(" irbrd \n");
         TelnetPrint.print(" irbrd \n");
         currentbr[sel] = currentbr[sel] - 5;
@@ -1580,11 +1796,11 @@ void ftable_ex(int fval ) {
         }
         break;
     }
-    case 12: { //irmax
+    case 12: {  // irmax
         fadeto(255);
         break;
     }
-    case 13: { //irmin
+    case 13: {  // irmin
         Serial.print(" irmin \n");
         TelnetPrint.print(" irmin \n");
         fadeto(1);
@@ -1598,10 +1814,10 @@ void ftable_ex(int fval ) {
     //     break;
     // }
 
-    case 101 ... 199 : { //diy shortcuts
-        diyload(fval%100);
+    case 101 ... 199: {  // diy shortcuts
+        diyload(fval % 100);
         if (irhold == 1 && millis() - irtime >= 2500) {
-            diyedit(fval%100);                                                                        // FINISH THIS !!!!!!!!!!!!!!!!
+            diyedit(fval % 100);  // FINISH THIS !!!!!!!!!!!!!!!!
         }
         break;
     }
@@ -1609,14 +1825,123 @@ void ftable_ex(int fval ) {
 }
 
 void loop() {
-    auto loop_start=millis();
+    // auto loop_start=millis();
     ArduinoOTA.handle();
     dnsServer.processNextRequest();
+    while (spamvar == 1) {  // print some info about the device on telnet (used when somebody GET requests /ds )
+        TelnetPrint.println("\n-----------Device statistics-----------\n\n");
+        TelnetPrint.println(F("LightCTL v" VERSION " | " __FILE__ "_" __DATE__ "_" __TIME__));
 
-    while (Serial.available() > 0) {
+        TelnetPrint.print("getBootMode: ");
+        TelnetPrint.println(ESP.getBootMode());
+        TelnetPrint.print("getBootVersion: ");
+        TelnetPrint.println(ESP.getBootVersion());
+        TelnetPrint.print("getChipId: ");
+        TelnetPrint.println(ESP.getChipId());
+        TelnetPrint.print("getCoreVersion: ");
+        TelnetPrint.println(ESP.getCoreVersion());
+        TelnetPrint.print("getCpuFreqMHz: ");
+        TelnetPrint.println(ESP.getCpuFreqMHz());
+        TelnetPrint.print("getCycleCount: ");
+        TelnetPrint.println(ESP.getCycleCount());
+        TelnetPrint.print("getFlashChipId: ");
+        TelnetPrint.println(ESP.getFlashChipId());
+        TelnetPrint.print("getFlashChipMode: ");
+        TelnetPrint.println(ESP.getFlashChipMode());
+        TelnetPrint.print("getFlashChipRealSize: ");
+        TelnetPrint.println(ESP.getFlashChipRealSize());
+        TelnetPrint.print("getFlashChipSize: ");
+        TelnetPrint.println(ESP.getFlashChipSize());
+        TelnetPrint.print("getFlashChipSizeByChipId: ");
+        TelnetPrint.println(ESP.getFlashChipSizeByChipId());
+        TelnetPrint.print("getFlashChipSpeed: ");
+        TelnetPrint.println(ESP.getFlashChipSpeed());
+        TelnetPrint.print("getFlashChipVendorId: ");
+        TelnetPrint.println(ESP.getFlashChipVendorId());
+        TelnetPrint.print("getFreeContStack: ");
+        TelnetPrint.println(ESP.getFreeContStack());
+        TelnetPrint.print("getFreeHeap: ");
+        TelnetPrint.println(ESP.getFreeHeap());
+        TelnetPrint.print("getFreeSketchSpace: ");
+        TelnetPrint.println(ESP.getFreeSketchSpace());
+        TelnetPrint.print("getFullVersion: ");
+        TelnetPrint.println(ESP.getFullVersion());
+        TelnetPrint.print("getHeapFragmentation: ");
+        TelnetPrint.println(ESP.getHeapFragmentation());
+        TelnetPrint.print("getMaxFreeBlockSize: ");
+        TelnetPrint.println(ESP.getMaxFreeBlockSize());
+        TelnetPrint.print("getResetInfo: ");
+        TelnetPrint.println(ESP.getResetInfo());
+        TelnetPrint.print("getSdkVersion: ");
+        TelnetPrint.println(ESP.getSdkVersion());
+        TelnetPrint.print("getSketchMD5: ");
+        TelnetPrint.println(ESP.getSketchMD5());
+        TelnetPrint.print("getSketchSize: ");
+        TelnetPrint.println(ESP.getSketchSize());
+        TelnetPrint.print("\n\n---------------WiFi---------------\n\n");
+        TelnetPrint.print("broadcastIP: ");
+        TelnetPrint.println(WiFi.broadcastIP());
+        TelnetPrint.print("BSSIDstr: ");
+        TelnetPrint.println(WiFi.BSSIDstr());
+        TelnetPrint.print("channel: ");
+        TelnetPrint.println(WiFi.channel());
+        TelnetPrint.print("dnsIP: ");
+        TelnetPrint.println(WiFi.dnsIP().toString());
+        TelnetPrint.print("gatewayIP: ");
+        TelnetPrint.println(WiFi.gatewayIP());
+        TelnetPrint.print("getAutoConnect: ");
+        TelnetPrint.println(WiFi.getAutoConnect());
+        TelnetPrint.print("getAutoReconnect: ");
+        TelnetPrint.println(WiFi.getAutoReconnect());
+        TelnetPrint.flush();
+        TelnetPrint.print("getHostname: ");
+        TelnetPrint.println(WiFi.getHostname());
+        TelnetPrint.print("getListenInterval: ");
+        TelnetPrint.println(WiFi.getListenInterval());
+        TelnetPrint.print("getMode: ");
+        TelnetPrint.println(WiFi.getMode());
+        TelnetPrint.print("getPersistent: ");
+        TelnetPrint.println(WiFi.getPersistent());
+        TelnetPrint.print("getPhyMode: ");
+        TelnetPrint.println(WiFi.getPhyMode());
+        TelnetPrint.print("hostname: ");
+        TelnetPrint.println(WiFi.hostname());
+        TelnetPrint.print("isConnected: ");
+        TelnetPrint.println(WiFi.isConnected());
+        TelnetPrint.print("localIP: ");
+        TelnetPrint.println(WiFi.localIP());
+        TelnetPrint.print("macAddress: ");
+        TelnetPrint.println(WiFi.macAddress());
+        TelnetPrint.print("psk: ");
+        TelnetPrint.println(WiFi.psk());
+        TelnetPrint.print("RSSI: ");
+        TelnetPrint.println(WiFi.RSSI());
+        TelnetPrint.print("softAPDhcpServer.isRunning: ");
+        TelnetPrint.println(WiFi.softAPDhcpServer().isRunning());
+        TelnetPrint.print("softAPgetStationNum: ");
+        TelnetPrint.println(WiFi.softAPgetStationNum());
+        TelnetPrint.print("softAPIP: ");
+        TelnetPrint.println(WiFi.softAPIP());
+        TelnetPrint.print("softAPmacAddress: ");
+        TelnetPrint.println(WiFi.softAPmacAddress());
+        TelnetPrint.print("softAPPSK: ");
+        TelnetPrint.println(WiFi.softAPPSK());
+        TelnetPrint.print("softAPSSID: ");
+        TelnetPrint.println(WiFi.softAPSSID());
+        TelnetPrint.print("SSID: ");
+        TelnetPrint.println(WiFi.SSID());
+        TelnetPrint.print("status: ");
+        TelnetPrint.println(WiFi.status());
+        TelnetPrint.print("subnetMask: ");
+        TelnetPrint.println(WiFi.subnetMask());
+        TelnetPrint.flush();
+        spamvar = 0;
+    }
+
+    while (Serial.available() > 0) {  // accept input from serial and run the assigned functions
         switch (Serial.readStringUntil('\n').charAt(0)) {
         case 'r': {
-            currentbr[1] = Serial.parseInt();
+            currentbr[1] = Serial.parseInt();  // this section needs heavy updating to work with the rest of the code
             break;
         }
         case 'g': {
@@ -1644,7 +1969,7 @@ void loop() {
         }
         case 'n': {
             //          noti(255, 20, 3);
-//            notidiy();
+            //            notidiy();
             break;
         }
         case 'm': {
@@ -1664,9 +1989,9 @@ void loop() {
         case '?': {
             // for (int i = 0; i <= winset; i++) {
             //    // Serial.print(currentset[i]);
-            //TelnetPrint.print(currentset[i]);
+            // TelnetPrint.print(currentset[i]);
             //    // Serial.print("\\");
-            //TelnetPrint.print("\\");
+            // TelnetPrint.print("\\");
             // }
             break;
         }
@@ -1708,7 +2033,7 @@ void loop() {
         }
         }
     }
-    //ir interface
+    // ir interface
     if (irrecv.decode(&results)) {
         if (results.value != 0xFFFFFFFF) {
             TelnetPrint.println("IR received.");
@@ -1743,143 +2068,202 @@ void loop() {
     //     wltim=millis();
     // }
 
-// new fade thing
-    if(fadetype==1) {                                           // new fade effect
-        for(int i=0; i<=chnr; i++) {
-            if(lasttarget[i]!=targetbr[i]) {
-                speed[i]=(targetbr[i]-currentbr[i])/nms;
+    // new fade thing
+    if (fadetype == 1) {  // new fade effect
+        // this effect attempts to reach a value in a specified time,
+        // no matter the time it takes the mcu to execute one loop()
+        //     for(int i=0; i<=chnr; i++) {
+        //         if(lasttarget[i]!=targetbr[i]) {
+        //             if (!fading) {
+        //             startMillis = millis();
+        //             endMillis = startMillis + duration + 10;
+        //             fading = true;
+        //             }
+        //             lasttarget[i]=targetbr[i];                               //might be more efficient but needs more testing
+        //         }
+        //     }
+
+        // unsigned long currentMillis = millis();
+        // if (currentMillis < endMillis) {
+        //     float progress = 1.0 - ((float)(endMillis - currentMillis) / (float)duration);
+        //     for (int i = 0; i <= chnr; i++) {
+        //         currentbr[i] = initialBrightness[i] + (targetbr[i] - initialBrightness[i]) * progress;
+        //         brichanged=1;
+        //     }
+        // } else {
+        //     if(fading){
+        //     for (int i = 0; i <= chnr; i++) {
+        //         if(targetbr[i]!=currentbr[i]) {
+        //                 TelnetPrint.print("Channel failed brightness: ");
+        //                 TelnetPrint.print(i);
+        //                 TelnetPrint.print(" had: ");
+        //                 TelnetPrint.print(currentbr[i]);
+        //                 TelnetPrint.print(" expected: ");
+        //                 TelnetPrint.println(targetbr[i]);
+        //             currentbr[i] = targetbr[i];
+        //             brichanged=1;
+        //         }
+        //     }
+        //     fading = false;
+        //     }
+        // }
+
+        for (int i = 0; i <= chnr; i++) {  // compute the speed used to change brightness
+            if (lasttarget[i] != targetbr[i]) {
+                speed[i] = (targetbr[i] - currentbr[i]) / nms;
                 TelnetPrint.print("Speed result: ");
-                TelnetPrint.println(speed[i],6);
+                TelnetPrint.println(speed[i], 6);
                 TelnetPrint.print("Expected end: ");
-                TelnetPrint.println(millis()+nms);
-                finbrms=millis()+nms+100;
-                lastbrms=millis();
-                lasttarget[i]=targetbr[i];
+                TelnetPrint.println(millis() + nms);
+                finbrms = millis() + nms + 100;  // time brightness change should end (+100ms tolerance)
+                lastbrms = millis();             // current time as last brightness change
+                lasttarget[i] = targetbr[i];
             }
         }
-        for(int i=0; i<=chnr; i++) {
-            if(targetbr[i]!=currentbr[i]) {
-                if(((speed[i]<0) && (currentbr[i]+speed[i]*(millis()-lastbrms)<targetbr[i]))||(speed[i]>0) && (currentbr[i]+speed[i]*(millis()-lastbrms)>targetbr[i])) {
-                    currentbr[i]=targetbr[i];
+        for (int i = 0; i <= chnr; i++) {
+            if (targetbr[i] != currentbr[i]) {  // change brightness if the target differs from the current value
+                if (((speed[i] < 0) && (currentbr[i] + speed[i] * (millis() - lastbrms) < targetbr[i])) || (speed[i] > 0) && (currentbr[i] + speed[i] * (millis() - lastbrms) > targetbr[i])) {
+                    // condition to check if the next brightness change would overshoot the target
+                    // for example: if speed=2, target=6, current=5 then current+step = 7 so it overshoots
+                    // the target and ends up in an infinite loop increasing the current brightness forever
+                    currentbr[i] = targetbr[i];  // directly set the brightness to the target
                     TelnetPrint.println(millis());
                     continue;
                 }
-                currentbr[i]+=speed[i]*(millis()-lastbrms);
-                brichanged=1;
+                currentbr[i] += speed[i] * (millis() - lastbrms);  // fade the brightness
+                brichanged = 1;
             }
         }
-        lastbrms=millis();
-        if(millis()>=finbrms) {
-            for(int i=0; i<=chnr; i++) {
-                if(targetbr[i]!=currentbr[i]) {
+        lastbrms = millis();
+        if (millis() >= finbrms) {  // check if the time allocated for brightness fade has elapsed
+            for (int i = 0; i <= chnr; i++) {
+                if (targetbr[i] != currentbr[i]) {  // check if a channel did not reach the requested value in time
                     TelnetPrint.print("Channel failed brightness: ");
                     TelnetPrint.print(i);
                     TelnetPrint.print(" had: ");
-                    TelnetPrint.print(currentbr[i],6);
+                    TelnetPrint.print(currentbr[i], 6);
                     TelnetPrint.print(" expected: ");
-                    TelnetPrint.println(targetbr[i],6);
-                    currentbr[i]=targetbr[i];
-                    brichanged=1;
+                    TelnetPrint.println(targetbr[i], 6);
+                    currentbr[i] = targetbr[i];  // directly set the value to the target one
+                    brichanged = 1;
                 }
             }
         }
-
-    } else if(fadetype==2) {                                    // classic fade effect
-        if(micros() - lastfade >= fadetick) {
-            for(int i=0; i<=chnr; i++) {
-                if(targetbr[i]>currentbr[i]) {
+    } else if (fadetype == 2) {                 // classic fade effect
+        if (micros() - lastfade >= fadetick) {  // this effect heavily depends on the speed the code runs on the mcu
+            for (int i = 0; i <= chnr; i++) {
+                if (targetbr[i] > currentbr[i]) {
                     currentbr[i]++;
-                    brichanged=1;
+                    brichanged = 1;
                 }
-                if(targetbr[i]<currentbr[i]) {
+                if (targetbr[i] < currentbr[i]) {
                     currentbr[i]--;
-                    brichanged=1;
+                    brichanged = 1;
                 }
             }
-            lastfade=micros();
+            lastfade = micros();
         }
     }
 
-    if(brichanged==1) {
-        if (currentbr[0] !=0) {
+    if (brichanged == 1) {
+        if (currentbr[0] != 0) {
             digitalWrite(atx, HIGH);
         } else {
             digitalWrite(atx, LOW);
         }
         awrite(anw);
-        brichanged=0;
+        brichanged = 0;
     }
 
+    // fade thing - old version
+    //  if(micros() - lastfade >= fadetick) {
+    //          for(int i=0; i<=chnr; i++) {
+    //              if (currentbr[0] !=0) {
+    //                  digitalWrite(atx, HIGH);
+    //              } else {
+    //                  digitalWrite(atx, LOW);
+    //              }
 
-//fade thing - old version
-// if(micros() - lastfade >= fadetick) {
-//         for(int i=0; i<=chnr; i++) {
-//             if (currentbr[0] !=0) {
-//                 digitalWrite(atx, HIGH);
-//             } else {
-//                 digitalWrite(atx, LOW);
-//             }
+    //             if(targetbr[i]>currentbr[i]) {
+    //                 currentbr[i]++;
+    //             }
+    //             if(targetbr[i]<currentbr[i]) {
+    //                 currentbr[i]--;
+    //             }
+    //             awrite(anw);
+    //         }
+    //         lastfade=micros();
+    //     }
 
-//             if(targetbr[i]>currentbr[i]) {
-//                 currentbr[i]++;
-//             }
-//             if(targetbr[i]<currentbr[i]) {
-//                 currentbr[i]--;
-//             }
-//             awrite(anw);
-//         }
-//         lastfade=micros();
-//     }
-
-
-    if(millis() - cron1 >= 1000) {
+    if (millis() - cron1 >= 1000) {  // this section is executed every second and can be used for tasks or debug
         // Dir dir = SPIFFS.openDir ("/t/");
         // while (dir.next ()) {
         // TelnetPrint.println (dir.fileName());
         // SPIFFS.remove(dir.fileName());
         // }
-        float vlmed=0;
-        for(int i=1; i<=30; i++) {
-            vlmed+=vloop[i];
-        }
-        TelnetPrint.print("Loop avg (ms): ");
-        TelnetPrint.println(vlmed/30,3);
-        //TelnetPrint.println(analogRead(adc));
-        //TelnetPrint
-        cron1=millis();
+        // float vlmed=0;
+        // for(int i=1; i<=30; i++) {
+        //     vlmed+=vloop[i];
+        // }
+        // TelnetPrint.print("Loop avg (ms): ");
+        // TelnetPrint.println(vlmed/30,3);
+        // TelnetPrint.println(analogRead(adc));
+        // TelnetPrint
+        //TelnetPrint.println(aaaa2);
+        cron1 = millis();
     }
-    if(millis() - cron2 >= 10000) {
-        TelnetPrint.print("ADC: ");
-        TelnetPrint.println(analogRead(adc));
-        cron2=millis();
+    if (millis() - cron2 >= 10000) {  // this section is executed every 10 seconds and can be used for tasks or debug
+        //  TelnetPrint.print("ADC: ");
+        //    TelnetPrint.println(analogRead(adc));
+        // File a = SPIFFS.open("/last", "r");
+        // while (a.available()) {
+        //     TelnetPrint.println(a.readStringUntil('\n'));
+        // }
+        // a.close();
+        cron2 = millis();
     }
 
-    if(start_noti!=0) {
-        notifade(start_noti,ntik);
-        start_noti=0;
+    if (start_noti != 0) {  // rough implementation of NotiFade (Note: NotiFade blocks the mcu)
+        notifade(start_noti, ntik);
+        start_noti = 0;
     }
-    if(millis() - lastsave >= savetim*1000) {
-        if(needs_update()) {
+    if (millis() - lastsave >= savetim * 1000) {  // check if brightness needs to be updated on disk using the last written value (from ram)
+        if (needs_update()) {
             TelnetPrint.println("update /last on disk");
             TelnetPrint.println(savetim);
             File last = SPIFFS.open("/last", "w");
-            for(int i=0; i<=chnr; i++) {
+            TelnetPrint.println("open /last WRITE");
+            for (int i = 0; i <= chnr; i++) {
                 last.println(targetbr[i]);
-                persistbr[i]=targetbr[i];
+                persistbr[i] = targetbr[i];
             }
+            if (script.running) {
+                for (int i = 0; i <= chnr; i++) {
+                    last.println(script.oldbr[i]);
+                    persistbr[i] = script.oldbr[i];
+                }
+                last.println(script.path);
+            } else {
+                last.println(0);
+            }
+
             last.close();
         }
 
-        lastsave=millis();
+        lastsave = millis();
     }
-    //TelnetPrint.flush();
-    digitalWrite(statusled, millis() % 1000 > 500 ? HIGH : LOW);
-
-    //awrite(anw);//                              <<<<------------
-
-    vl++;
-    if(vl>30) {
-        vl=0;
+    if (script.running && script.resumeMillis <= millis()) {
+        scriptRunner();
     }
-    vloop[vl]=millis()-loop_start;
+    // TelnetPrint.flush();
+    // digitalWrite(statusled, millis() % 1000 > 500 ? HIGH : LOW);
+
+    // awrite(anw);//                              <<<<------------
+
+    // vl++;
+    // if(vl>30) {
+    //     vl=0;
+    // }
+    // vloop[vl]=millis()-loop_start;
+
 }
