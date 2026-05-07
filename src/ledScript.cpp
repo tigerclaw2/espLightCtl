@@ -1,11 +1,12 @@
 #include "ledScript.h"
 #include <TelnetPrint.h>
 #include <TaskSchedulerDeclarations.h>
+#include "light.h"
 
 // External dependencies from main.cpp
-extern int chnr;
-extern int targetbr[6];
-extern double nms;
+//extern int chnr;
+//extern int targetbr[6];
+//extern double nms;
 extern Task tScriptR;
 
 // Initialize the pointer to null
@@ -20,8 +21,8 @@ void scriptEnd() {
     }
 
     // Restore target brightness from the script's internal saved state
-    for (int i = 0; i <= chnr; i++) {
-        targetbr[i] = activeScript->savedbr[i];
+    for (int i = 0; i <= Light.getChCount(); i++) {
+        Light.setBriSingle(i, activeScript->savedbr[i]);
     }
 
     tScriptR.disable();
@@ -47,8 +48,8 @@ void scriptBegin(String path) {
     TelnetPrint.println("Script begin reading metadata for: " + path);
 
     // Save the current state BEFORE the script modifies it
-    for (int i = 0; i <= chnr; i++) {
-        activeScript->savedbr[i] = targetbr[i];
+    for (int i = 0; i <= Light.getChCount(); i++) {
+        activeScript->savedbr[i] = Light.getBriSingle(i);
     }
 
     activeScript->file = SPIFFS.open(path, "r");
@@ -60,7 +61,7 @@ void scriptBegin(String path) {
     }
     activeScript->running = true;
     tScriptR.setInterval(0); 
-    tScriptR.enable();
+    tScriptR.restart();
     TelnetPrint.println("Script begin done");
 }
 
@@ -77,24 +78,24 @@ void scriptRunner() {
 
     switch (line[0]) {
     case 'F':
-        nms = line.substring(1).toInt();
+        Light.setFadeSpeed(line.substring(1).toInt());
         break;
     case 'S': {
         String s = line.substring(1);
         int i = 0;
         int j = 0;
         while (s.indexOf(',', i) != -1) {
-            targetbr[j] = s.substring(i, s.indexOf(',', i)).toInt();
+            Light.setBriSingle(j, s.substring(i, s.indexOf(',', i)).toInt());
             i = s.indexOf(',', i) + 1;
             j++;
         }
-        targetbr[j] = s.substring(i).toInt();
+        Light.setBriSingle(j, s.substring(i).toInt());
         break;
     }
     case 'C': {
         String s = line.substring(1);
         int i = s.indexOf(',');
-        targetbr[s.substring(0, i).toInt()] = s.substring(i + 1).toInt();
+        Light.setBriSingle(s.substring(0, i).toInt(), s.substring(i + 1).toInt());
         break;
     }
     case 'P': {
@@ -135,7 +136,7 @@ void scriptRunner() {
     case 'W': {
         TelnetPrint.print("W suspending until: ");
         String s = line.substring(1);
-        tScriptR.setInterval(s.toInt() * 10);
+        tScriptR.setInterval(s.toInt()); // this should be  s.toInt() * 10
         break;
     }
     case 'R': {
@@ -145,7 +146,7 @@ void scriptRunner() {
         int j = s.indexOf(',', i + 1);
         int randomnr = random(s.substring(i + 1, j).toInt(), s.substring(j + 1).toInt());
         TelnetPrint.println(randomnr);
-        targetbr[s.substring(0, i).toInt()] = randomnr;
+        Light.setBriSingle(s.substring(0, i).toInt(), randomnr);
         break;
     }
 

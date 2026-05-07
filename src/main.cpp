@@ -146,7 +146,6 @@ dhlease leases[MAX_LEASES];
 // int rboot = 1;
 // int winset = 20;
 // int eeprommax = 10;
-double nms = 1000;  //<<<<<<<<<<<<<<<<<------------------------
 
 int chout1 = -1;
 int chout2 = -1;
@@ -184,16 +183,38 @@ struct control {
 //     String path;
 // } script;
 
-unsigned long irtime, lastir, wltim, lastsave, lastwlscan;
-long fadeTotalSteps = 0, fadeCurrentStep = 0; 
-int sel, diynr = 0, chnr = 0, anw = 1, lastbr[6], wltimeout, raw, calib[6], savetim, persistbr[6], targetbr[6], adc_val, fadetick, ntik, currentbr[6], startbr[6];
+unsigned long irtime;
+unsigned long lastir;
+unsigned long wltim;
+unsigned long lastsave;
+unsigned long lastwlscan;
+//long fadeTotalSteps = 0;
+//long fadeCurrentStep = 0;
+int sel;
+int diynr = 0;
+//int chnr = 0;
+int anw = 1;
+int lastbr[6];
+int wltimeout;
+int raw;
+//int calib[6];
+int savetim;
+int persistbr[6];
+//int targetbr[6];
+int adc_val;
+int fadetick;
+int ntik;
+//double nms = 1000;  //<<<<<<<<<<<<<<<<<------------------------
+//int currentbr[6];
+//int startbr[6];
+
 //double speed[6], currentbr[6];
 // float adc_val;
 bool wlconf_started, setup_ok, irhold = 0, start_noti, brichanged;
 
 //int spamvar;
 
-int lastSeenTarget[6]; // adjust size to match your channel count (chnr+1)
+//int lastSeenTarget[6]; // adjust size to match your channel count (chnr+1)
 
 void diyedit(int num);
 void diyload(int num);
@@ -395,164 +416,20 @@ void netScannerCallback() {
     if (scan_current_ip >= 255) scan_current_ip = 1;
 }
 
-//ledscript
-// void scriptEnd() {
-//     TelnetPrint.println("Script end");
-//     script.file.close();
-//     script.running = false;
-//     //script.resumeMillis = 0;
-//     script.loopbegin = 0;
-//     script.loopcount = 0;
-//     script.pbegin = 0;
-//     script.path = "";
 
-//     for (int i = 0; i <= chnr; i++) {
-//         targetbr[i]=lastbr[i];
-//     }
-//     tScriptR.disable();
-// }
-
-// void scriptBegin(String path) {
-//     if(!SPIFFS.exists(path)) {
-//         TelnetPrint.println("Script file not found");
-//         return;
-//     }
-//     if(script.running) {
-//         scriptEnd();
-//     }
-//     script.path = path;
-//     TelnetPrint.println("Script begin reading metadata for: " + path);
-
-//     for (int i = 0; i <= chnr; i++) {
-//         lastbr[i]=targetbr[i];
-//     }
-
-//     script.file = SPIFFS.open(path, "r");
-//     String line = script.file.readStringUntil('\n');
-//     switch (line[0]) {
-//     case 'N':
-//         script.meta_chnr = line[1] - '0';
-//         break;
-//     }
-//     script.running = true;
-//     tScriptR.setInterval(0); 
-//     tScriptR.enable();
-//     TelnetPrint.println("Script begin done");
-// }
-
-// void scriptRunner() {
-//     //maybe implement looping and nesting in this LFTA style by multyplying each operation's importance
-
-//     if (tScriptR.getInterval() > 0) {
-//         tScriptR.setInterval(0);
-//     }
-
-//     String line = script.file.readStringUntil('\n');
-//     TelnetPrint.println(line);
-
-//     switch (line[0]) {
-//     case 'F':
-//         nms = line.substring(1).toInt();
-//         break;
-//     case 'S': {
-//         String s = line.substring(1);
-//         int i = 0;
-//         int j = 0;
-//         while (s.indexOf(',', i) != -1) {
-//             targetbr[j] = s.substring(i, s.indexOf(',', i)).toInt();
-//             i = s.indexOf(',', i) + 1;
-//             j++;
-//         }
-//         targetbr[j] = s.substring(i).toInt();
-//         break;
-//     }
-//     case 'C': {
-//         String s = line.substring(1);
-//         int i = s.indexOf(',');
-//         targetbr[s.substring(0, i).toInt()] = s.substring(i + 1).toInt();
-//         break;
-//     }
-//     case 'P': {
-//         TelnetPrint.print("P found, stored position: ");
-//         String s = line.substring(1);
-//         int i = s.toInt();
-//         script.pbegin = script.file.position();
-//         TelnetPrint.println(script.pbegin);
-//         break;
-//     }
-//     case 'Q': {
-//         TelnetPrint.println("Q found seeking to P");
-//         String s = line.substring(1);
-//         int i = s.toInt();
-//         script.file.seek(script.pbegin);
-//         TelnetPrint.println("Seek to P done");
-//         break;
-//     }
-//     case 'L': {
-//         TelnetPrint.print("L found, storing position: ");
-//         String s = line.substring(1);
-//         script.loopbegin = script.file.position();
-//         TelnetPrint.println(script.loopbegin);
-//         TelnetPrint.print("Loop count: ");
-//         script.loopcount = s.toInt();
-//         TelnetPrint.println(script.loopcount);
-//         break;
-//     }
-//     case 'O': {
-//         if(script.loopcount > 0) {
-//             script.file.seek(script.loopbegin);
-//             script.loopcount--;
-//             TelnetPrint.print("Loops remaining:");
-//             TelnetPrint.println(script.loopcount);
-//             break;
-//         } else {
-//             TelnetPrint.print("End loop: ");
-//             TelnetPrint.println(script.loopcount);
-//             break;
-//         }
-//     }
-//     case 'W': {
-//         TelnetPrint.print("W suspending until: ");
-//         String s = line.substring(1);
-//         //script.resumeMillis = millis() + s.toInt() * 10;
-//         tScriptR.setInterval(s.toInt() * 10);
-//        // TelnetPrint.println(script.resumeMillis);
-//         break;
-//     }
-//     case 'R': {
-//         TelnetPrint.print("R random number: ");
-//         String s = line.substring(1);
-//         int i = s.indexOf(',');
-//         int j = s.indexOf(',', i + 1);
-//         int randomnr = random(s.substring(i + 1, j).toInt(), s.substring(j + 1).toInt());
-//         TelnetPrint.println(randomnr);
-//         targetbr[s.substring(0, i).toInt()] = randomnr;
-//         break;
-//     }
-
-//     default: {
-//         TelnetPrint.print("Unknown command: ");
-//         TelnetPrint.println(line);
-//         if (line == "") {
-//             scriptEnd();
-//         }
-//         break;
-//     }
-//     }
-// }
 
 int needs_update() {
     return 0;  // early return for debug purposes, never save brightness to disk
-    if(!activeScript) {
-        for (int i = 0; i <= chnr; i++) {
-            if (targetbr[i] != persistbr[i]) {
-                return 1;
-            }
-        }
-    } else {
-        //todo
-    }
-    return 0;
+    // if(!activeScript) {
+    //     for (int i = 0; i <= chnr; i++) {
+    //         if (targetbr[i] != persistbr[i]) {
+    //             return 1;
+    //         }
+    //     }
+    // } else {
+    //     //todo
+    // }
+    // return 0;
 
 }
 
@@ -949,17 +826,23 @@ void startsrv() {
     server.on("/a1/shade", HTTP_POST, [](AsyncWebServerRequest *request) {
         raw = 0;
         if (request->hasArg("ch1"))
-            targetbr[1] = request->arg("ch1").toInt();
+            Light.setBriSingle(1,request->arg("ch1").toInt());
+            //targetbr[1] = request->arg("ch1").toInt();
         if (request->hasArg("ch2"))
-            targetbr[2] = request->arg("ch2").toInt();
+            Light.setBriSingle(2,request->arg("ch2").toInt());
+            //targetbr[2] = request->arg("ch2").toInt();
         if (request->hasArg("ch3"))
-            targetbr[3] = request->arg("ch3").toInt();
+            Light.setBriSingle(3,request->arg("ch3").toInt());
+        //targetbr[3] = request->arg("ch3").toInt();
         if (request->hasArg("ch4"))
-            targetbr[4] = request->arg("ch4").toInt();
+            Light.setBriSingle(4,request->arg("ch4").toInt());
+            //targetbr[4] = request->arg("ch4").toInt();
         if (request->hasArg("ch5"))
-            targetbr[5] = request->arg("ch5").toInt();
+            Light.setBriSingle(5,request->arg("ch5").toInt());
+            //targetbr[5] = request->arg("ch5").toInt();
         if (request->hasArg("ch0"))
-            targetbr[0] = request->arg("ch0").toInt();
+            Light.setBriSingle(0,request->arg("ch0").toInt());
+            //targetbr[0] = request->arg("ch0").toInt();
         lastsave = millis();
 
         request->send_P(200, "text/html", success_html);
@@ -979,8 +862,8 @@ void startsrv() {
             diyload(request->arg("dl").toInt());
         } else if(request->hasArg("de")) {
             TelnetPrint.println("[WEB] /diy found de");
-            for(int i=0; i<=chnr; i++) {
-                lastbr[i]=targetbr[i];
+            for(int i=0; i<=Light.getChCount(); i++) {
+                lastbr[i]=Light.getBriSingle(i);
                 TelnetPrint.println(lastbr[i]);
             }
             TelnetPrint.println(request->arg("de").toInt());
@@ -1032,8 +915,8 @@ void startsrv() {
         char stat[72];
         JsonDocument doc;
 
-        for(int i=0; i<=chnr; i++) {
-            doc["c"+ std::to_string(i)]=targetbr[i];
+        for(int i=0; i<=Light.getChCount(); i++) {
+            doc["c"+ std::to_string(i)]=Light.getBriSingle(i);
         }
         serializeJson(doc, stat);
         TelnetPrint.println(stat);
@@ -1229,36 +1112,42 @@ void setup() {
                 statusled = doc["hw"]["status"];
                 pinMode(statusled, OUTPUT);
             }
-            if (doc["hw"]["c1"] != -1) {
-                chnr++;
-                chout1 = doc["hw"]["c1"];
-                pinMode(chout1, OUTPUT);
-                digitalWrite(chout1, LOW);
+            Light.addCh(0, -1, 255);
+            for (int i=1; i<6; i++) {
+                String hwKey = "c" + String(i);
+                String swKey = "b" + String(i);
+                Light.addCh(i, doc["hw"][hwKey], doc["sw"][swKey]);
             }
-            if (doc["hw"]["c2"] != -1) {
-                chnr++;
-                chout2 = doc["hw"]["c2"];
-                pinMode(chout2, OUTPUT);
-                digitalWrite(chout2, LOW);
-            }
-            if (doc["hw"]["c3"] != -1) {
-                chnr++;
-                chout3 = doc["hw"]["c3"];
-                pinMode(chout3, OUTPUT);
-                digitalWrite(chout3, LOW);
-            }
-            if (doc["hw"]["c4"] != -1) {
-                chnr++;
-                chout4 = doc["hw"]["c4"];
-                pinMode(chout4, OUTPUT);
-                digitalWrite(chout4, LOW);
-            }
-            if (doc["hw"]["c5"] != -1) {
-                chnr++;
-                chout5 = doc["hw"]["c5"];
-                pinMode(chout5, OUTPUT);
-                digitalWrite(chout5, LOW);
-            }
+            // if (doc["hw"]["c1"] != -1) {
+            //     chnr++;
+            //     chout1 = doc["hw"]["c1"];
+            //     pinMode(chout1, OUTPUT);
+            //     digitalWrite(chout1, LOW);
+            // }
+            // if (doc["hw"]["c2"] != -1) {
+            //     chnr++;
+            //     chout2 = doc["hw"]["c2"];
+            //     pinMode(chout2, OUTPUT);
+            //     digitalWrite(chout2, LOW);
+            // }
+            // if (doc["hw"]["c3"] != -1) {
+            //     chnr++;
+            //     chout3 = doc["hw"]["c3"];
+            //     pinMode(chout3, OUTPUT);
+            //     digitalWrite(chout3, LOW);
+            // }
+            // if (doc["hw"]["c4"] != -1) {
+            //     chnr++;
+            //     chout4 = doc["hw"]["c4"];
+            //     pinMode(chout4, OUTPUT);
+            //     digitalWrite(chout4, LOW);
+            // }
+            // if (doc["hw"]["c5"] != -1) {
+            //     chnr++;
+            //     chout5 = doc["hw"]["c5"];
+            //     pinMode(chout5, OUTPUT);
+            //     digitalWrite(chout5, LOW);
+            // }
             TelnetPrint.begin();
             Serial.println("[SYS] Checking factory reset flag...");
             TelnetPrint.println("[SYS] Checking factory reset flag...");
@@ -1274,12 +1163,12 @@ void setup() {
             // analogWriteRange(doc["sw"]["anw"]);
             anw = doc["sw"]["anw"];
             diynr = doc["sw"]["dnr"];
-            calib[0] = doc["sw"]["b0"];
-            calib[1] = doc["sw"]["b1"];
-            calib[2] = doc["sw"]["b2"];
-            calib[3] = doc["sw"]["b3"];
-            calib[4] = doc["sw"]["b4"];
-            calib[5] = doc["sw"]["b5"];
+            // Light.setCalibSingle(0, doc["sw"]["b0"]);
+            // Light.setCalibSingle(1, doc["sw"]["b1"]);
+            // Light.setCalibSingle(2, doc["sw"]["b2"]);
+            // Light.setCalibSingle(3, doc["sw"]["b3"]);
+            // Light.setCalibSingle(4, doc["sw"]["b4"]);
+            // Light.setCalibSingle(5, doc["sw"]["b5"]);
             savetim = doc["sw"]["rbt"];
             fadetick = doc["sw"]["tik"];
             webui = doc["web"] | "dev";  //.as<String>();
@@ -1321,8 +1210,9 @@ void setup() {
 
     if(File last = SPIFFS.open("/last", "r")){  // restore brightness and script state
         TelnetPrint.println("open last");
-        for (int i = 0; i <= chnr; i++) {
-            targetbr[i] = persistbr[i] = last.parseInt();
+        for (int i = 0; i <= Light.getChCount(); i++) {
+            persistbr[i] = last.parseInt();
+            Light.setBriSingle(i, persistbr[i]);
         }
         last.close();
     }
@@ -1382,7 +1272,7 @@ void diyedit(int num) {  // saves the current brightness values in the specified
             TelnetPrint.println(diy.c_str());
             // std::string diy = "d" + std::to_string(num);
             // doc[diy]["all"] = lastbr[0];  ///////////////////////////////////////////////////////////////////
-            for (int i = 0; i <= chnr; i++) {
+            for (int i = 0; i <= Light.getChCount(); i++) {
                 doc[diy]["c" + std::to_string(i)] = lastbr[i];  //////////////////////////////////////////////////////////
             }
         }
@@ -1422,14 +1312,14 @@ void diyload(int num) {  // loads and applies brightness values stored in the sp
         TelnetPrint.println(diy.c_str());
         TelnetPrint.println("diyload");
         // diy += std::to_string(num);
-        for (int i = 0; i <= chnr; i++) {
-            lastbr[i] = currentbr[i];
+        for (int i = 0; i <= Light.getChCount(); i++) {
+            lastbr[i] = Light.getBriSingle(i);
             Serial.println(lastbr[i]);
             // TelnetPrint.println(lastbr[i]);
             Serial.println(i);
             // TelnetPrint.println(i);
-            targetbr[i] = doc[diy]["c" + std::to_string(i)];
-            TelnetPrint.println(targetbr[i]);
+            Light.setBriSingle(i, doc[diy]["c" + std::to_string(i)]);
+            TelnetPrint.println(Light.getBriSingle(i));
         }
     }
 
@@ -1468,7 +1358,7 @@ void ftable_ex(int fval) {  // function that contains and executes all the funct
     }
     case 6: {
         sel++;
-        if (sel >= chnr) {
+        if (sel >= Light.getChCount()) {
             sel = 0;
         }
     }
@@ -1478,26 +1368,26 @@ void ftable_ex(int fval) {  // function that contains and executes all the funct
     }
     case 9: {
     }
-    case 10: {  // br +
-        Serial.print(" irbru \n");
-        TelnetPrint.print(" irbru \n");
-        currentbr[sel] = currentbr[sel] + 5;
-        if (sel != 0 && currentbr[sel] >= 100) {
-            currentbr[sel] = 100;
-        } else if (currentbr[0] >= 255) {
-            currentbr[0] = 255;
-        }
-        break;
-    }
-    case 11: {  // br -
-        Serial.print(" irbrd \n");
-        TelnetPrint.print(" irbrd \n");
-        currentbr[sel] = currentbr[sel] - 5;
-        if (currentbr[sel] <= 0) {
-            currentbr[sel] = 0;
-        }
-        break;
-    }
+    // case 10: {  // br +
+    //     Serial.print(" irbru \n");
+    //     TelnetPrint.print(" irbru \n");
+    //     targetbr[sel] = targetbr[sel] + 5;
+    //     if (sel != 0 && targetbr[sel] >= 100) {
+    //         targetbr[sel] = 100;
+    //     } else if (targetbr[0] >= 255) {
+    //         targetbr[0] = 255;
+    //     }
+    //     break;
+    // }
+    // case 11: {  // br -
+    //     Serial.print(" irbrd \n");
+    //     TelnetPrint.print(" irbrd \n");
+    //     targetbr[sel] = targetbr[sel] - 5;
+    //     if (targetbr[sel] <= 0) {
+    //         targetbr[sel] = 0;
+    //     }
+    //     break;
+    // }
     case 12: {  // irmax
         break;
     }
@@ -1529,33 +1419,33 @@ void userInputWatcher() {
 
     while (Serial.available() > 0) {  // accept input from serial and run the assigned functions
         switch (Serial.readStringUntil('\n').charAt(0)) {
-        case 'r': {
-            currentbr[1] = Serial.parseInt();  // this section needs heavy updating to work with the rest of the code
-            break;
-        }
-        case 'g': {
-            currentbr[2] = Serial.parseInt();
-            break;
-        }
-        case 'b': {
-            currentbr[3] = Serial.parseInt();
-            break;
-        }
-        case 'w': {
-            currentbr[4] = Serial.parseInt();
-            break;
-        }
-        case 'a': {
-            currentbr[0] = Serial.parseInt();
-            break;
-        }
-        case 's': {
-            for (int i = 0; i <= chnr; i++) {
-                lastbr[i] = currentbr[i];
-            }
-            diyedit(Serial.parseInt());
-            break;
-        }
+        // case 'r': {
+        //     targetbr[1] = Serial.parseInt();  // this section needs heavy updating to work with the rest of the code
+        //     break;
+        // }
+        // case 'g': {
+        //     targetbr[2] = Serial.parseInt();
+        //     break;
+        // }
+        // case 'b': {
+        //     targetbr[3] = Serial.parseInt();
+        //     break;
+        // }
+        // case 'w': {
+        //     targetbr[4] = Serial.parseInt();
+        //     break;
+        // }
+        // case 'a': {
+        //     targetbr[0] = Serial.parseInt();
+        //     break;
+        // }
+        // case 's': {
+        //     for (int i = 0; i <= chnr; i++) {
+        //         lastbr[i] = targetbr[i];
+        //     }
+        //     diyedit(Serial.parseInt());
+        //     break;
+        // }
         case 'n': {
             //          noti(255, 20, 3);
             //            notidiy();
