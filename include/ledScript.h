@@ -12,14 +12,14 @@ struct scriptinfo {
     int loopcount;
     bool running = false;
     String path;
-    int savedbr[6]; // Replaces lastbr for script state restoration
+    int* savedbr;
+    //int savedbr[6];
 };
 
-// Expose the active script pointer so main.cpp can check if it's running
 extern scriptinfo* activeScript;
 
-void scriptBegin(String path);
-void scriptEnd();
+int scriptBegin(String path);
+int scriptEnd();
 void scriptRunner();
 
 #endif // LED_SCRIPT_H

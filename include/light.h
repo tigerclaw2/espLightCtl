@@ -17,7 +17,6 @@ struct Channel {
     int currentbr = 0;
     int targetbr = 0;
     int startbr = 0;
-    int lastSeenTarget = 0;
 };
 
 class LightController {
@@ -27,7 +26,9 @@ private:
 
     long fadeTotalSteps = 0;
     long fadeCurrentStep = 0;
-    double nms = 0.0;
+    double nms = 1000;
+    
+    void recalculateFade();
 
 public:
     LightController() = default;
@@ -54,11 +55,9 @@ public:
     int getBriSingle(int id) const;
     void setBriSingle(int id, int value);
 
-    // --- Unipurpose Setters ---
     void setFadeSpeed(double speed);
 
-    // --- Core Logic ---
-    void watcher();
+    //void watcher();
     void fader();
     void awrite(int mode = 0);
     void notifade(int ldiy = 9, int tick = 20);
@@ -67,7 +66,7 @@ public:
 extern LightController Light;
 
 // --- Legacy Wrappers ---
-void lightWatcher();
+//void lightWatcher();
 void faderCallback();
 void awrite(int mode = 0);
 void notifade(int ldiy = 9, int tick = 20);

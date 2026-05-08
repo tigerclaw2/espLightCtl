@@ -53,7 +53,7 @@ extern "C" {
   #include <lwip/etharp.h>
   #include <lwip/netif.h>
   #include <lwip/ip_addr.h>
-}
+  }
 
 ADC_MODE(ADC_VCC);
 #define VERSION "0.8.3_Debug"
@@ -223,14 +223,22 @@ void userInputWatcher();
 
 void netScannerCallback();
 
+void infoPrintCallback();
+
 // Task Definitions
 
 Task tScriptR(10, TASK_FOREVER, &scriptRunner, &runner, false);
 Task tUInputW(50, TASK_FOREVER, &userInputWatcher, &runner, true);
 Task tFader(15, TASK_ONCE, &faderCallback, &runner, false);
-Task tLightW(100, TASK_FOREVER, &lightWatcher, &runner, true);
+//Task tLightW(100, TASK_FOREVER, &lightWatcher, &runner, true);
 Task tNetScanner(50, TASK_FOREVER, &netScannerCallback, &runner, true);
+//Task tInfoPrint(8000, TASK_FOREVER, &infoPrintCallback, &runner, true);
 
+
+void infoPrintCallback() {
+        // debug prints go here
+        TelnetPrint.flush();
+}
 
 void netScannerCallback() {
     if (!enable_net_scan || WiFi.status() != WL_CONNECTED) return;
@@ -969,8 +977,7 @@ void startsrv() {
     });
 
     // server.on("/debug", HTTP_GET, [](AsyncWebServerRequest *request) {
-    //     spamvar=1;
-    //     request->send_P(200, "text/plain", "Debug info printed to Telnet");
+    //     request->send_P(200, "text/plain", msg);
     // });
 
     server.on("/rbt", HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -980,12 +987,11 @@ void startsrv() {
     });
 
     server.on("/script", HTTP_GET, [](AsyncWebServerRequest *request) {
-        if(request->hasArg("p")) {
-           // String tmp=request->arg("p");
-            scriptBegin(request->arg("p"));
+        if(request->hasArg("p") && !scriptBegin(request->arg("p"))) {
+            request->send_P(200, "text/plain", "ok");
         } else {
-            scriptEnd();
-            request->send_P(500, "text/plain", "script end");
+            if(scriptEnd());
+            request->send_P(200, "text/plain", "script end");
         }
         request->send_P(200, "text/plain", "ok");
     });

@@ -1,5 +1,5 @@
 #include "light.h"
-#include <TelnetPrint.h>
+//#include <TelnetPrint.h>
 #include <TaskSchedulerDeclarations.h>
 
 extern Task tFader;
@@ -7,23 +7,17 @@ extern void diyload(int num);
 
 LightController Light;
 
-// ==============================================================================
-// LEGACY WRAPPERS
-// ==============================================================================
-void lightWatcher() { Light.watcher(); }
 void faderCallback() { Light.fader(); }
 void awrite(int mode) { Light.awrite(mode); }
 void notifade(int ldiy, int tick) { Light.notifade(ldiy, tick); }
 
-// ==============================================================================
-// CLASS IMPLEMENTATION: CHANNEL MANAGEMENT & SETTERS
-// ==============================================================================
 
 void LightController::addCh(int id, int pin, int calib) {
     Channel ch;
     ch.id = id;
     ch.pin = pin;
     ch.calib = calib;
+    pinMode(ch.id, OUTPUT);
     channels.push_back(ch);
 }
 
@@ -37,6 +31,7 @@ void LightController::setBri(const int* values, size_t size) {
     for (size_t i = 0; i < limit; i++) {
         channels[i].targetbr = values[i];
     }
+    recalculateFade();
 }
 
 void LightController::getBri(int* outValues, size_t maxSize) const {
@@ -57,6 +52,7 @@ void LightController::setBriSingle(int id, int value) {
     for (auto& ch : channels) {
         if (ch.id == id) {
             ch.targetbr = value;
+            recalculateFade();
             break;
         }
     }
@@ -66,79 +62,50 @@ void LightController::setFadeSpeed(double speed) {
     nms = speed;
 }
 
-// ==============================================================================
-// CLASS IMPLEMENTATION: CORE LOGIC
-// ==============================================================================
+void LightController::recalculateFade() {
+    if (channels.empty()) return;
 
-void LightController::watcher() {
-    bool newCommandDetected = false;
     long maxDelta = 0;
 
     for (size_t i = 0; i < channels.size(); i++) {
-        if (channels[i].targetbr != channels[i].lastSeenTarget) {
-            newCommandDetected = true;
-            channels[i].lastSeenTarget = channels[i].targetbr;
-            TelnetPrint.printf("New command detected at index %d: %d\n", i, channels[i].targetbr);
-        }
-
-        if (channels[i].targetbr != channels[i].currentbr) {
-            long diff = abs(channels[i].targetbr - channels[i].currentbr);
-            if (diff > maxDelta) {
-                maxDelta = diff;
-                TelnetPrint.printf ("New maxDelta detected: %ld at index %d\n", maxDelta, i);
-            }
+        long diff = abs(channels[i].targetbr - channels[i].currentbr);
+        if (diff > maxDelta) {
+            maxDelta = diff;
         }
     }
 
-    if (!newCommandDetected && tFader.isEnabled()) {
-        TelnetPrint.println("No new command detected; fading will continue.");
-        return;
-    }
-    
-    if (!newCommandDetected && maxDelta == 0) {
-        return;
-    }
+    if (maxDelta == 0) return;
 
-    if (tFader.isEnabled()) {
-        TelnetPrint.println("Retargeting fade...");
-        tFader.disable(); 
-    }
+    //TelnetPrint.println("New command detected, retargeting fade...");
 
     for (size_t i = 0; i < channels.size(); i++) {
         channels[i].startbr = channels[i].currentbr;
-        TelnetPrint.printf("Starting condition for channel %d: %d\n", i, channels[i].startbr);
-    }
-
-    if (maxDelta == 0) {
-        TelnetPrint.println("maxDelta is zero; exiting to prevent errors.");
-        return; 
     }
 
     long calculatedInterval = 0;
     long timePerStep = nms / maxDelta; 
-    TelnetPrint.printf("Calculated timePerStep: %ld\n", timePerStep);
 
     if (timePerStep < MIN_INTERVAL) {
         calculatedInterval = MIN_INTERVAL;
         fadeTotalSteps = nms / MIN_INTERVAL;
         fadeTotalSteps = fadeTotalSteps < 1 ? 1 : fadeTotalSteps;
-        TelnetPrint.println("Mode: Speed Priority");
     } else {
         calculatedInterval = timePerStep;
         fadeTotalSteps = maxDelta;
-        TelnetPrint.println("Mode: Precision Priority");
     }
 
     fadeCurrentStep = 0;
+    //TelnetPrint.printf("Interval: %ld | steps: %ld\n", calculatedInterval, fadeTotalSteps);
     tFader.setInterval(calculatedInterval);
     tFader.setIterations(fadeTotalSteps);
+    
+    // Using restart() instead of enable() guarantees the scheduler resets its internal clock
     tFader.enable(); 
-    TelnetPrint.printf("Fade launched with interval: %ld ms and total steps: %ld\n", calculatedInterval, fadeTotalSteps);
 }
 
 void LightController::fader() {
     fadeCurrentStep++; 
-    TelnetPrint.printf("[%ld]Fader: fadeStep: %ld\n", millis(), fadeCurrentStep);
+    //TelnetPrint.printf("[%ld]Fader: fadeStep: %ld\n", millis(), fadeCurrentStep);
     bool updateHardware = false;
 
     for (size_t i = 0; i < channels.size(); i++) {
@@ -184,8 +151,8 @@ void LightController::notifade(int ldiy, int tick) {
         noti[i] = channels[i].targetbr;
     }
     
-    TelnetPrint.println(ldiy);
-    TelnetPrint.println(tick);
+    // TelnetPrint.println(ldiy);
+    // TelnetPrint.println(tick);
     diyload(ldiy);
     
     while (done <= channels.size()) { // Replaces done <= chnr + 1
@@ -230,5 +197,5 @@ void LightController::notifade(int ldiy, int tick) {
             awrite(anw);
         }
     }
-    TelnetPrint.println("finished notifade");
+    // TelnetPrint.println("finished notifade");
 }
