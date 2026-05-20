@@ -20,47 +20,47 @@ struct Channel {
 };
 
 class LightController {
-private:
-    // A single dynamic vector holding all our channel data
-    std::vector<Channel> channels;
+    private:
+        // A single dynamic vector holding all our channel data
+        std::vector<Channel> channels;
 
-    long fadeTotalSteps = 0;
-    long fadeCurrentStep = 0;
-    double nms = 1000;
-    
-    void recalculateFade();
+        long fadeTotalSteps = 0;
+        long fadeCurrentStep = 0;
+        double nms = 1000;
 
-public:
-    LightController() = default;
+        void recalculateFade();
 
-    // --- Channel Management ---
-    // Make sure you add channel 0 first as your virtual brightness channel!
-    void addCh(int id, int pin, int calib);
-    size_t getChCount() const;
+    public:
+        LightController() = default;
 
-    // --- Setters & Getters (Standard C-Array Approach) ---
-    // Pass a pointer to your array and tell it how many elements it has
-    void setBri(const int* values, size_t size);
-    void getBri(int* outValues, size_t maxSize) const;
+        // --- Channel Management ---
+        // Make sure you add channel 0 first as your virtual brightness channel!
+        void addCh(int id, int pin, int calib);
+        size_t getChCount() const;
 
-    // --- Setters & Getters (Variadic / Unlimited Arguments) ---
-    // This allows: Light.setBri(255, 128, 64, 200);
-    template <typename... Args>
-    void setBri(Args... args) {
-        // Unpack the arguments into a temporary C-array and pass it to the standard function
-        int values[] = { static_cast<int>(args)... };
-        setBri(values, sizeof...(args));
-    }
+        // --- Setters & Getters (Standard C-Array Approach) ---
+        // Pass a pointer to your array and tell it how many elements it has
+        void setBri(const int* values, size_t size);
+        void getBri(int* outValues, size_t maxSize) const;
 
-    int getBriSingle(int id) const;
-    void setBriSingle(int id, int value);
+        // --- Setters & Getters (Variadic / Unlimited Arguments) ---
+        // This allows: Light.setBri(255, 128, 64, 200);
+        template <typename... Args>
+        void setBri(Args... args) {
+            // Unpack the arguments into a temporary C-array and pass it to the standard function
+            int values[] = { static_cast<int>(args)... };
+            setBri(values, sizeof...(args));
+        }
 
-    void setFadeSpeed(double speed);
+        int getBriSingle(int id) const;
+        void setBriSingle(int id, int value);
 
-    //void watcher();
-    void fader();
-    void awrite(int mode = 0);
-    void notifade(int ldiy = 9, int tick = 20);
+        void setFadeSpeed(double speed);
+
+        //void watcher();
+        void fader();
+        void awrite(int mode = 0);
+        void notifade(int ldiy = 9, int tick = 20);
 };
 
 extern LightController Light;

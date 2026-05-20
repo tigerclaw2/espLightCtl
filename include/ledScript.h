@@ -10,7 +10,6 @@ struct scriptinfo {
     int pbegin;
     int loopbegin;
     int loopcount;
-    bool running = false;
     String path;
     int* savedbr;
     //int savedbr[6];

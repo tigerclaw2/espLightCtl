@@ -13,9 +13,9 @@ extern Task tScriptR;
 scriptinfo* activeScript = nullptr;
 
 int scriptEnd() {
-     if (!activeScript) {
+    if (!activeScript) {
         return 0;       //nothing to do but it's also not an err
-     }; 
+    };
 
     tScriptR.disable();
 
@@ -32,18 +32,18 @@ int scriptEnd() {
     // free up memory
     delete[] activeScript->savedbr;
     scriptinfo* temp = activeScript; //prevent use after free when called from async webserver
-    activeScript = nullptr; 
+    activeScript = nullptr;
     delete temp;
     return 0;
 }
 
 int scriptBegin(String path) {
-   
+
     if(!SPIFFS.exists(path)) {
         ////TelnetPrint.println("Script file not found");
         return 1;
     }
-    
+
     // If a script is already running, clean it up first
     tScriptR.disable();
 
@@ -65,12 +65,11 @@ int scriptBegin(String path) {
     activeScript->file = SPIFFS.open(path, "r");
     String line = activeScript->file.readStringUntil('\n');
     switch (line[0]) {
-        case 'N':
-            activeScript->meta_chnr = line[1] - '0';
-            break;
+    case 'N':
+        activeScript->meta_chnr = line[1] - '0';
+        break;
     }
-    activeScript->running = true;
-    tScriptR.setInterval(0); 
+    tScriptR.setInterval(0);
     tScriptR.restart();
     //TelnetPrint.println("Script begin done");
     return 0;
@@ -78,21 +77,21 @@ int scriptBegin(String path) {
 
 void scriptRunner() {
 
-        // Safety check
-        if (!activeScript || !activeScript->running) return;
+    // Safety check
+    if (!activeScript) return;
 
-        if (tScriptR.getInterval() > 0) {
-            tScriptR.setInterval(0);
-        }
+    if (tScriptR.getInterval() > 0) {
+        tScriptR.setInterval(0);
+    }
 
-        String line = activeScript->file.readStringUntil('\n');
-        //TelnetPrint.println(line);
+    String line = activeScript->file.readStringUntil('\n');
+    //TelnetPrint.println(line);
 
-        switch (line[0]) {
-        case 'F':
-            Light.setFadeSpeed(line.substring(1).toInt());
-            break;
-        case 'S': {
+    switch (line[0]) {
+    case 'F':
+        Light.setFadeSpeed(line.substring(1).toInt());
+        break;
+    case 'S': {
             String s = line.substring(1);
             int i = 0;
             int j = 0;
@@ -104,25 +103,25 @@ void scriptRunner() {
             Light.setBriSingle(j, s.substring(i).toInt());
             break;
         }
-        case 'C': {
+    case 'C': {
             String s = line.substring(1);
             int i = s.indexOf(',');
             Light.setBriSingle(s.substring(0, i).toInt(), s.substring(i + 1).toInt());
             break;
         }
-        case 'P': {
+    case 'P': {
             //TelnetPrint.print("P found, stored position: ");
             activeScript->pbegin = activeScript->file.position();
             //TelnetPrint.println(activeScript->pbegin);
             break;
         }
-        case 'Q': {
+    case 'Q': {
             //TelnetPrint.println("Q found seeking to P");
             activeScript->file.seek(activeScript->pbegin);
             //TelnetPrint.println("Seek to P done");
             break;
         }
-        case 'L': {
+    case 'L': {
             //TelnetPrint.print("L found, storing position: ");
             String s = line.substring(1);
             activeScript->loopbegin = activeScript->file.position();
@@ -132,7 +131,7 @@ void scriptRunner() {
             //TelnetPrint.println(activeScript->loopcount);
             break;
         }
-        case 'O': {
+    case 'O': {
             if(activeScript->loopcount > 0) {
                 activeScript->file.seek(activeScript->loopbegin);
                 activeScript->loopcount--;
@@ -145,13 +144,13 @@ void scriptRunner() {
                 break;
             }
         }
-        case 'W': {
+    case 'W': {
             //TelnetPrint.print("W suspending until: ");
             String s = line.substring(1);
             tScriptR.setInterval(s.toInt()); // this should be  s.toInt() * 10
             break;
         }
-        case 'R': {
+    case 'R': {
             //TelnetPrint.print("R random number: ");
             String s = line.substring(1);
             int i = s.indexOf(',');
@@ -162,7 +161,7 @@ void scriptRunner() {
             break;
         }
 
-        default: {
+    default: {
             //TelnetPrint.print("Unknown command: ");
             //TelnetPrint.println(line);
             if (line == "") {
@@ -170,6 +169,5 @@ void scriptRunner() {
             }
             break;
         }
-        }
-
+    }
 }

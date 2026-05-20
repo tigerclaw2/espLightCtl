@@ -7,9 +7,15 @@ extern void diyload(int num);
 
 LightController Light;
 
-void faderCallback() { Light.fader(); }
-void awrite(int mode) { Light.awrite(mode); }
-void notifade(int ldiy, int tick) { Light.notifade(ldiy, tick); }
+void faderCallback() {
+    Light.fader();
+}
+void awrite(int mode) {
+    Light.awrite(mode);
+}
+void notifade(int ldiy, int tick) {
+    Light.notifade(ldiy, tick);
+}
 
 
 void LightController::addCh(int id, int pin, int calib) {
@@ -17,7 +23,9 @@ void LightController::addCh(int id, int pin, int calib) {
     ch.id = id;
     ch.pin = pin;
     ch.calib = calib;
-    pinMode(ch.id, OUTPUT);
+    // if(ch.id > -1){
+    //     pinMode(ch.id, OUTPUT);
+    // }
     channels.push_back(ch);
 }
 
@@ -83,7 +91,7 @@ void LightController::recalculateFade() {
     }
 
     long calculatedInterval = 0;
-    long timePerStep = nms / maxDelta; 
+    long timePerStep = nms / maxDelta;
 
     if (timePerStep < MIN_INTERVAL) {
         calculatedInterval = MIN_INTERVAL;
@@ -98,13 +106,13 @@ void LightController::recalculateFade() {
     //TelnetPrint.printf("Interval: %ld | steps: %ld\n", calculatedInterval, fadeTotalSteps);
     tFader.setInterval(calculatedInterval);
     tFader.setIterations(fadeTotalSteps);
-    
+
     // Using restart() instead of enable() guarantees the scheduler resets its internal clock
-    tFader.enable(); 
+    tFader.enable();
 }
 
 void LightController::fader() {
-    fadeCurrentStep++; 
+    fadeCurrentStep++;
     //TelnetPrint.printf("[%ld]Fader: fadeStep: %ld\n", millis(), fadeCurrentStep);
     bool updateHardware = false;
 
@@ -127,9 +135,9 @@ void LightController::fader() {
 
 void LightController::awrite(int mode) {
     analogWriteResolution(anw);
-    
+
     // Safety check in case we fire awrite before adding channels
-    if (channels.empty()) return; 
+    if (channels.empty()) return;
 
     int masterCurrent = channels[0].currentbr; // Virtual channel 0
 
@@ -140,21 +148,21 @@ void LightController::awrite(int mode) {
     }
 }
 
-void LightController::notifade(int ldiy, int tick) {  
+void LightController::notifade(int ldiy, int tick) {
     if (channels.empty()) return;
 
     // Use a standard vector instead of a Variable Length Array (C++ compliance)
     std::vector<int> noti(channels.size());
     int done = 0;
-    
+
     for (size_t i = 0; i < channels.size(); i++) {
         noti[i] = channels[i].targetbr;
     }
-    
+
     // TelnetPrint.println(ldiy);
     // TelnetPrint.println(tick);
     diyload(ldiy);
-    
+
     while (done <= channels.size()) { // Replaces done <= chnr + 1
         for (size_t i = 0; i < channels.size(); i++) {
             done++;
@@ -173,12 +181,12 @@ void LightController::notifade(int ldiy, int tick) {
             awrite(anw);
         }
     }
-    
+
     for (size_t i = 0; i < channels.size(); i++) {
         channels[i].targetbr = noti[i];
     }
     done = 0;
-    
+
     while (done <= channels.size()) {
         for (size_t i = 0; i < channels.size(); i++) {
             done++;

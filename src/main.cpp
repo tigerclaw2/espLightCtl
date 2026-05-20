@@ -48,15 +48,16 @@ function assig table:
 #include "light.h"
 #include "webpages.h"
 #include "ledScript.h"
+#include "sNetFeat.h"
 
-extern "C" {
-  #include <lwip/etharp.h>
-  #include <lwip/netif.h>
-  #include <lwip/ip_addr.h>
-  }
+// extern "C" {
+// #include <lwip/etharp.h>
+// #include <lwip/netif.h>
+// #include <lwip/ip_addr.h>
+// }
 
 ADC_MODE(ADC_VCC);
-#define VERSION "0.8.3_Debug"
+#define VERSION "0.8.4_Debug"
 #define DEBUG_USE_TELNET 1
 
 #define SPIFFS_CACHE = (1)
@@ -98,48 +99,48 @@ Tar<FS> tar(&SPIFFS);
 Scheduler runner;
 
 
-WiFiUDP Udp;                           //[cite: 2]
-unsigned int localUdpPort = 67;       // Listen port under 1024 for debug[cite: 2]
-char incomingPacket[255];              // Buffer for incoming packets[cite: 2]
+// WiFiUDP Udp;                           //[cite: 2]
+// unsigned int localUdpPort = 67;       // Listen port under 1024 for debug[cite: 2]
+// char incomingPacket[255];              // Buffer for incoming packets[cite: 2]
 
-bool enable_net_scan = false;          // Master toggle
-uint8_t scan_current_ip = 1;           // Tracks ARP scanning IP
+// bool enable_net_scan = false;          // Master toggle
+// uint8_t scan_current_ip = 1;           // Tracks ARP scanning IP
 
-// --- DHCP Lease Storage ---
-#define MAX_LEASES 20
+// // --- DHCP Lease Storage ---
+// #define MAX_LEASES 20
 
-struct dhlease {
-    // --- Fixed DHCP Header Fields ---
-    uint8_t op;              // Message op code (1 = BootRequest)
-    uint8_t htype;           // Hardware address type (1 = Ethernet)
-    uint8_t hlen;            // Hardware address length (usually 6 for MAC)
-    uint8_t hops;            // Relay agent hops
-    uint32_t xid;            // Transaction ID (random number chosen by client)
-    uint16_t secs;           // Seconds elapsed since client began process
-    uint16_t flags;          // Flags (e.g., Broadcast flag)
-    IPAddress ciaddr;        // Client IP address (if client already has one)
-    IPAddress yiaddr;        // 'Your' (client) IP address
-    IPAddress siaddr;        // Next server IP address
-    IPAddress giaddr;        // Relay agent IP address
-    uint8_t chaddr[16];      // Client hardware address (First 6 bytes are MAC)
-    char sname[64];          // Optional server host name (rarely used by clients)
-    char file[128];          // Boot file name (rarely used by clients)
+// struct dhlease {
+//     // --- Fixed DHCP Header Fields ---
+//     uint8_t op;              // Message op code (1 = BootRequest)
+//     uint8_t htype;           // Hardware address type (1 = Ethernet)
+//     uint8_t hlen;            // Hardware address length (usually 6 for MAC)
+//     uint8_t hops;            // Relay agent hops
+//     uint32_t xid;            // Transaction ID (random number chosen by client)
+//     uint16_t secs;           // Seconds elapsed since client began process
+//     uint16_t flags;          // Flags (e.g., Broadcast flag)
+//     IPAddress ciaddr;        // Client IP address (if client already has one)
+//     IPAddress yiaddr;        // 'Your' (client) IP address
+//     IPAddress siaddr;        // Next server IP address
+//     IPAddress giaddr;        // Relay agent IP address
+//     uint8_t chaddr[16];      // Client hardware address (First 6 bytes are MAC)
+//     char sname[64];          // Optional server host name (rarely used by clients)
+//     char file[128];          // Boot file name (rarely used by clients)
 
-    // --- DHCP Options (Variable Length) ---
-    uint8_t msg_type;              // Option 53: DHCP Message Type (1=Discover, 3=Request, etc.)
-    IPAddress requested_ip;        // Option 50: Requested IP
-    String hostname;               // Option 12: Hostname
-    String vendor_class;           // Option 60: Vendor Class Identifier
-    String client_id;              // Option 61: Client Identifier (often MAC or UUID)
-    String fqdn;                   // Option 81: Fully Qualified Domain Name
-    uint16_t max_msg_size;         // Option 57: Maximum DHCP Message Size client accepts
-    uint8_t param_req_list[50];    // Option 55: Parameter Request List (what the client wants from the router)
-    uint8_t param_req_len;         // Length of the Parameter Request List
-    
-    bool active; // Flag to check if this slot in the array is populated
-};
+//     // --- DHCP Options (Variable Length) ---
+//     uint8_t msg_type;              // Option 53: DHCP Message Type (1=Discover, 3=Request, etc.)
+//     IPAddress requested_ip;        // Option 50: Requested IP
+//     String hostname;               // Option 12: Hostname
+//     String vendor_class;           // Option 60: Vendor Class Identifier
+//     String client_id;              // Option 61: Client Identifier (often MAC or UUID)
+//     String fqdn;                   // Option 81: Fully Qualified Domain Name
+//     uint16_t max_msg_size;         // Option 57: Maximum DHCP Message Size client accepts
+//     uint8_t param_req_list[50];    // Option 55: Parameter Request List (what the client wants from the router)
+//     uint8_t param_req_len;         // Length of the Parameter Request List
 
-dhlease leases[MAX_LEASES];
+//     bool active; // Flag to check if this slot in the array is populated
+// };
+
+// dhlease leases[MAX_LEASES];
 
 //String aaaa2;
 
@@ -169,19 +170,6 @@ struct control {
     int irbign;
     int irbskp;
 } ctrl;
-
-// struct scriptinfo {
-//     File file;
-//     int meta_chnr;
-//     // int current_line;
-//     int pbegin;
-//     int loopbegin;
-//     int loopcount;
-//     //unsigned long resumeMillis = 0;
-//     bool running = false;
-//     //int oldbr[6];
-//     String path;
-// } script;
 
 unsigned long irtime;
 unsigned long lastir;
@@ -231,200 +219,16 @@ Task tScriptR(10, TASK_FOREVER, &scriptRunner, &runner, false);
 Task tUInputW(50, TASK_FOREVER, &userInputWatcher, &runner, true);
 Task tFader(15, TASK_ONCE, &faderCallback, &runner, false);
 //Task tLightW(100, TASK_FOREVER, &lightWatcher, &runner, true);
-Task tNetScanner(50, TASK_FOREVER, &netScannerCallback, &runner, true);
+//Task tNetScanner(50, TASK_FOREVER, &netScannerCallback, &runner, true);
 //Task tInfoPrint(8000, TASK_FOREVER, &infoPrintCallback, &runner, true);
+
+Task tNetScanner(50, TASK_FOREVER, &trackDevicesTask, &runner, true);
 
 
 void infoPrintCallback() {
-        // debug prints go here
-        TelnetPrint.flush();
+    // debug prints go here
+    TelnetPrint.flush();
 }
-
-void netScannerCallback() {
-    if (!enable_net_scan || WiFi.status() != WL_CONNECTED) return;
-
-    // --- 1. Comprehensive DHCP Sniffer & Parser ---
-    int packetSize = Udp.parsePacket();
-    if (packetSize) {
-        uint8_t buffer[600]; // Increased to 600 to handle maximum standard DHCP packet sizes
-        int len = Udp.read(buffer, sizeof(buffer));
-        
-        // A valid DHCP packet to the magic cookie is 240 bytes
-        if (len >= 240) {
-            // Check for the DHCP Magic Cookie
-            if (buffer[236] == 0x63 && buffer[237] == 0x82 && buffer[238] == 0x53 && buffer[239] == 0x63) {
-                
-                dhlease tempLease;
-                tempLease.active = true;
-                
-                // --- Parse Fixed Header Fields ---
-                tempLease.op    = buffer[0];
-                tempLease.htype = buffer[1];
-                tempLease.hlen  = buffer[2];
-                tempLease.hops  = buffer[3];
-                
-                // Combine bytes for multi-byte values (Network Byte Order is Big-Endian)
-                tempLease.xid   = (buffer[4] << 24) | (buffer[5] << 16) | (buffer[6] << 8) | buffer[7];
-                tempLease.secs  = (buffer[8] << 8) | buffer[9];
-                tempLease.flags = (buffer[10] << 8) | buffer[11];
-                
-                tempLease.ciaddr = IPAddress(buffer[12], buffer[13], buffer[14], buffer[15]);
-                tempLease.yiaddr = IPAddress(buffer[16], buffer[17], buffer[18], buffer[19]);
-                tempLease.siaddr = IPAddress(buffer[20], buffer[21], buffer[22], buffer[23]);
-                tempLease.giaddr = IPAddress(buffer[24], buffer[25], buffer[26], buffer[27]);
-                
-                memcpy(tempLease.chaddr, &buffer[28], 16);
-                memcpy(tempLease.sname, &buffer[44], 64);
-                memcpy(tempLease.file, &buffer[108], 128);
-
-                // Initialize defaults for optional fields
-                tempLease.msg_type = 0;
-                tempLease.requested_ip = IPAddress(0,0,0,0);
-                tempLease.hostname = "";
-                tempLease.vendor_class = "";
-                tempLease.client_id = "";
-                tempLease.fqdn = "";
-                tempLease.max_msg_size = 0;
-                tempLease.param_req_len = 0;
-
-                // --- Parse DHCP Options ---
-                int idx = 240;
-                while (idx < len && buffer[idx] != 255) { // 255 (0xFF) is the End Option tag
-                    uint8_t tag = buffer[idx];
-                    if (tag == 0) { // Padding
-                        idx++; 
-                        continue; 
-                    }
-                    
-                    uint8_t opt_len = buffer[idx + 1];
-                    uint8_t* opt_data = &buffer[idx + 2];
-                    idx += 2; // Move past Tag and Length
-                    
-                    switch(tag) {
-                        case 12: // Hostname
-                            for (int i = 0; i < opt_len; i++) tempLease.hostname += (char)opt_data[i];
-                            break;
-                        case 50: // Requested IP
-                            if (opt_len == 4) tempLease.requested_ip = IPAddress(opt_data[0], opt_data[1], opt_data[2], opt_data[3]);
-                            break;
-                        case 53: // DHCP Message Type
-                            if (opt_len == 1) tempLease.msg_type = opt_data[0];
-                            break;
-                        case 55: // Parameter Request List
-                            tempLease.param_req_len = (opt_len < 50) ? opt_len : 50; // Cap at 50 to prevent array overflow
-                            memcpy(tempLease.param_req_list, opt_data, tempLease.param_req_len);
-                            break;
-                        case 57: // Maximum Message Size
-                            if (opt_len == 2) tempLease.max_msg_size = (opt_data[0] << 8) | opt_data[1];
-                            break;
-                        case 60: // Vendor Class Identifier
-                            for (int i = 0; i < opt_len; i++) tempLease.vendor_class += (char)opt_data[i];
-                            break;
-                        case 61: // Client Identifier (Format: Type byte + Identifier)
-                            for (int i = 0; i < opt_len; i++) {
-                                // Often includes non-printable hex, so converting to a hex string is safer
-                                char hexStr[3];
-                                sprintf(hexStr, "%02X", opt_data[i]);
-                                tempLease.client_id += hexStr;
-                            }
-                            break;
-                        case 81: // Fully Qualified Domain Name
-                            // FQDN option has 3 bytes of flags/rcodes before the actual name
-                            if (opt_len > 3) {
-                                for (int i = 3; i < opt_len; i++) tempLease.fqdn += (char)opt_data[i];
-                            }
-                            break;
-                    }
-                    
-                    idx += opt_len; // Advance to the next option
-                }
-
-                // --- Store and Print the Parsed Data ---
-                // Msg Type 3 = DHCP Request (The client asking the router to confirm an IP)
-                if (tempLease.msg_type == 3 || tempLease.msg_type == 1) { // 1 = Discover, 3 = Request
-                    
-                    int slot = -1;
-                    for (int i = 0; i < MAX_LEASES; i++) {
-                        // Compare the first 6 bytes of chaddr (the MAC)
-                        if (leases[i].active && memcmp(leases[i].chaddr, tempLease.chaddr, 6) == 0) {
-                            slot = i; 
-                            break;
-                        } else if (!leases[i].active && slot == -1) {
-                            slot = i; 
-                        }
-                    }
-
-                    if (slot != -1) {
-                        leases[slot] = tempLease; 
-                        
-                        TelnetPrint.printf("\n[DHCP] Packet Captured -> Slot [%d]\n", slot);
-                        TelnetPrint.printf("  |- Msg Type: %d (1=Discover, 3=Request)\n", tempLease.msg_type);
-                        TelnetPrint.print("  |- MAC:      ");
-                        for (int i = 0; i < 6; i++) {
-                            if (tempLease.chaddr[i] < 0x10) TelnetPrint.print("0");
-                            TelnetPrint.print(tempLease.chaddr[i], HEX);
-                            if (i < 5) TelnetPrint.print(":");
-                        }
-                        TelnetPrint.printf("\n  |- Req IP:   %s\n", tempLease.requested_ip.toString().c_str());
-                        TelnetPrint.printf("  |- Hostname: %s\n", tempLease.hostname.c_str());
-                        TelnetPrint.printf("  |- Vendor:   %s\n", tempLease.vendor_class.c_str());
-                        TelnetPrint.printf("  |- ClientID: %s\n", tempLease.client_id.c_str());
-                        TelnetPrint.printf("  |- FQDN:     %s\n", tempLease.fqdn.c_str());
-                        TelnetPrint.printf("  |- Trans ID: %lu\n", tempLease.xid);
-                        TelnetPrint.println("------------------------------------------------");
-                    }
-                }
-            }
-        }
-    
-    }
-
-    // --- 2. Non-blocking ARP Scanner ---
-    // (Your existing ARP scanning logic remains exactly the same here)
-    IPAddress localIP = WiFi.localIP();
-    IPAddress subnet = WiFi.subnetMask();
-    IPAddress network;
-    for (int i = 0; i < 4; i++) network[i] = localIP[i] & subnet[i];
-
-    uint8_t prev_ip_octet = (scan_current_ip == 1) ? 254 : scan_current_ip - 1;
-    IPAddress prevIP = network;
-    prevIP[3] = prev_ip_octet;
-
-    if (prevIP != localIP) {
-        ip4_addr_t lwip_ip;
-        lwip_ip.addr = prevIP;
-        struct eth_addr *ret_eth_addr;
-        const ip4_addr_t *ret_ip_addr;
-
-        ssize_t idx = etharp_find_addr(netif_default, &lwip_ip, &ret_eth_addr, &ret_ip_addr);
-        if (idx >= 0) {
-            // Optional: You could also cross-reference ARP finds with your 'leases' array here!
-            TelnetPrint.print("[ARP] Device found -> IP: ");
-            TelnetPrint.print(prevIP.toString());
-            TelnetPrint.print(" | MAC: ");
-            for (int i = 0; i < 6; i++) {
-                if (ret_eth_addr->addr[i] < 0x10) TelnetPrint.print("0");
-                TelnetPrint.print(ret_eth_addr->addr[i], HEX);
-                if (i < 5) TelnetPrint.print(":");
-            }
-            TelnetPrint.println();
-        }
-    }
-
-    IPAddress currentIP = network;
-    currentIP[3] = scan_current_ip;
-
-    if (currentIP != localIP) {
-        ip4_addr_t target_ipaddr;
-        target_ipaddr.addr = currentIP;
-        etharp_request(netif_default, &target_ipaddr);
-    }
-
-    scan_current_ip++;
-    if (scan_current_ip >= 255) scan_current_ip = 1;
-}
-
-
 
 int needs_update() {
     return 0;  // early return for debug purposes, never save brightness to disk
@@ -630,29 +434,29 @@ void wlconf2() {
     } else {
         switch (doc["wlm"].as<int>()) {
         case 1: {  // ap mode
-            WiFi.mode(WIFI_AP);
-            WiFi.softAP(doc["apssid"] | "esp_LightCtl", doc["appsk"] | "987654321");
-            dnsServer.start(53, "*", WiFi.softAPIP());
-            break;
-        }
-        case 2: {  // client mode
-            if (WiFi.SSID().c_str() != doc["ssid"] || WiFi.psk().c_str() != doc["psk"]) {
-                WiFi.disconnect();
-                WiFi.mode(WIFI_STA);
-                WiFi.begin(doc["ssid"], doc["psk"] | "");
-            }
-            break;
-        }
-        case 3: {  // ap + client mode
-            if (WiFi.SSID().c_str() != doc["ssid"] || WiFi.psk().c_str() != doc["psk"] || WiFi.softAPSSID().c_str() != doc["apssid"] || WiFi.softAPPSK().c_str() != doc["appsk"]) {
-                WiFi.disconnect();
-                WiFi.mode(WIFI_AP_STA);
-                WiFi.begin(doc["ssid"], doc["psk"] | "");
+                WiFi.mode(WIFI_AP);
                 WiFi.softAP(doc["apssid"] | "esp_LightCtl", doc["appsk"] | "987654321");
+                dnsServer.start(53, "*", WiFi.softAPIP());
+                break;
             }
-            dnsServer.start(53, "*", WiFi.softAPIP());
-            break;
-        }
+        case 2: {  // client mode
+                if (WiFi.SSID().c_str() != doc["ssid"] || WiFi.psk().c_str() != doc["psk"]) {
+                    WiFi.disconnect();
+                    WiFi.mode(WIFI_STA);
+                    WiFi.begin(doc["ssid"], doc["psk"] | "");
+                }
+                break;
+            }
+        case 3: {  // ap + client mode
+                if (WiFi.SSID().c_str() != doc["ssid"] || WiFi.psk().c_str() != doc["psk"] || WiFi.softAPSSID().c_str() != doc["apssid"] || WiFi.softAPPSK().c_str() != doc["appsk"]) {
+                    WiFi.disconnect();
+                    WiFi.mode(WIFI_AP_STA);
+                    WiFi.begin(doc["ssid"], doc["psk"] | "");
+                    WiFi.softAP(doc["apssid"] | "esp_LightCtl", doc["appsk"] | "987654321");
+                }
+                dnsServer.start(53, "*", WiFi.softAPIP());
+                break;
+            }
         }
     }
     jsnwlan.close();
@@ -774,7 +578,7 @@ void startsrv() {
         if(request->hasArg("hw_p"))
             doc["hw"]["p"] = request->arg("hw_p");
         if(request->hasArg("hw_adc")) {
-            if(request->arg("hw_adc")) 
+            if(request->arg("hw_adc"))
                 doc["hw"]["adc"] = request->arg("hw_adc");
         } else {
             doc["hw"]["adc"] = -1;
@@ -835,28 +639,28 @@ void startsrv() {
         raw = 0;
         if (request->hasArg("ch1"))
             Light.setBriSingle(1,request->arg("ch1").toInt());
-            //targetbr[1] = request->arg("ch1").toInt();
+        //targetbr[1] = request->arg("ch1").toInt();
         if (request->hasArg("ch2"))
             Light.setBriSingle(2,request->arg("ch2").toInt());
-            //targetbr[2] = request->arg("ch2").toInt();
+        //targetbr[2] = request->arg("ch2").toInt();
         if (request->hasArg("ch3"))
             Light.setBriSingle(3,request->arg("ch3").toInt());
         //targetbr[3] = request->arg("ch3").toInt();
         if (request->hasArg("ch4"))
             Light.setBriSingle(4,request->arg("ch4").toInt());
-            //targetbr[4] = request->arg("ch4").toInt();
+        //targetbr[4] = request->arg("ch4").toInt();
         if (request->hasArg("ch5"))
             Light.setBriSingle(5,request->arg("ch5").toInt());
-            //targetbr[5] = request->arg("ch5").toInt();
+        //targetbr[5] = request->arg("ch5").toInt();
         if (request->hasArg("ch0"))
             Light.setBriSingle(0,request->arg("ch0").toInt());
-            //targetbr[0] = request->arg("ch0").toInt();
+        //targetbr[0] = request->arg("ch0").toInt();
         lastsave = millis();
 
         request->send_P(200, "text/html", success_html);
     });
 
-    server.on("/a1/dic", HTTP_GET, [](AsyncWebServerRequest *request) {             // diy create 
+    server.on("/a1/dic", HTTP_GET, [](AsyncWebServerRequest *request) {             // diy create
         SPIFFS.remove("/diy.json");
         request->redirect("/diym");
     });
@@ -883,8 +687,8 @@ void startsrv() {
     // get/read apis
 
     server.on("/a1/wlist", HTTP_GET, [](AsyncWebServerRequest *request) {
-    // async webserver is in a hurry and crashes if it has to wait for a blocking function to return
-    // so we need to do this and call the api 2 times in the webui
+        // async webserver is in a hurry and crashes if it has to wait for a blocking function to return
+        // so we need to do this and call the api 2 times in the webui
         if(millis() - lastwlscan > 8000) {
             WiFi.scanNetworks(true, true);
             lastwlscan = millis();
@@ -935,7 +739,7 @@ void startsrv() {
         request->send(SPIFFS, "/cfg.json", "application/json");
     });
 
-    server.on("/a1/di", HTTP_GET, [](AsyncWebServerRequest *request) {             // diy get            
+    server.on("/a1/di", HTTP_GET, [](AsyncWebServerRequest *request) {             // diy get
         request->send(SPIFFS, "/diy.json", "application/json");
     });
 
@@ -945,14 +749,79 @@ void startsrv() {
 
     // debug apis
 
+    server.on("/a1/getsnf", HTTP_GET, [](AsyncWebServerRequest *request) {
+        if (SPIFFS.exists("/conf/snf.json")) {
+            request->send(SPIFFS, "/conf/snf.json", "application/json");
+        } else {
+            // Return an empty JSON array if no config exists yet
+            request->send(200, "application/json", "[]"); 
+        }
+    });
+
+    // 2. GET /a1/getsnfd -> Live Discovery Stream
+    server.on("/a1/getsnfd", HTTP_GET, [](AsyncWebServerRequest *request) {
+        
+        // Reset the 30-second RAM allocation window
+        activateDiscoveryWindow(); 
+
+        // Trigger a fresh sweep if the UI asks for it
+        if (request->hasArg("scan") && !is_sweeping) {
+            discovered_devices.clear(); 
+            performArpSweep();
+        }
+
+        // Build the current network state JSON
+        JsonDocument doc;
+        doc["scan"] = is_sweeping; 
+        JsonArray devs = doc.createNestedArray("devices");
+        
+        for (const auto& d : discovered_devices) {
+            JsonObject obj = devs.createNestedObject();
+            obj["i"] = d.ip.toString();
+            
+            char macStr[18];
+            snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X", 
+                     d.mac[0], d.mac[1], d.mac[2], d.mac[3], d.mac[4], d.mac[5]);
+            obj["m"] = macStr;
+            obj["h"] = d.hostname;
+        }
+        
+        String response;
+        serializeJson(doc, response);
+        request->send(200, "application/json", response);
+    });
+
+    // 3. POST /a1/setsnf -> Save new JSON and immediately apply it
+    server.on("/a1/setsnf", HTTP_POST, [](AsyncWebServerRequest *request) {
+        // Standard handler wrapper (handled by the body callback below)
+        request->send(200, "text/plain", "OK");
+    }, NULL, [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+        // Body handler: Streams the incoming JSON directly to SPIFFS
+        if (index == 0) {
+            request->_tempFile = SPIFFS.open("/conf/snf.json", "w");
+        }
+        
+        if (request->_tempFile) {
+            request->_tempFile.write(data, len);
+        }
+        
+        if (index + len == total) {
+            if (request->_tempFile) {
+                request->_tempFile.close();
+            }
+            TelnetPrint.println("[API] snf.json updated. Reloading into RAM...");
+            loadSnfConfig(); // Dynamically apply the new rules instantly!
+        }
+    });
+
     server.on("/scan/on", HTTP_GET, [](AsyncWebServerRequest *request) {
-        enable_net_scan = true;
+       // enable_net_scan = true;
         TelnetPrint.println("[WEB] Network scanner ENABLED");
         request->send_P(200, "text/plain", "Scanner enabled. Monitoring Telnet...");
     });
 
     server.on("/scan/off", HTTP_GET, [](AsyncWebServerRequest *request) {
-        enable_net_scan = false;
+       // enable_net_scan = false;
         TelnetPrint.println("[WEB] Network scanner DISABLED");
         request->send_P(200, "text/plain", "Scanner disabled.");
     });
@@ -1018,7 +887,7 @@ void startsrv() {
         TelnetPrint.println(analogRead(adc));
         TelnetPrint.flush();
         int btn_idle_val = analogRead(adc)*100;
-        
+
         unsigned long t_timeout = millis();
         while(millis() - t_timeout <= 10000) {
             if (analogRead(adc)*100 != btn_idle_val) {
@@ -1214,7 +1083,7 @@ void setup() {
     });
     ArduinoOTA.begin();
 
-    if(File last = SPIFFS.open("/last", "r")){  // restore brightness and script state
+    if(File last = SPIFFS.open("/last", "r")) { // restore brightness and script state
         TelnetPrint.println("open last");
         for (int i = 0; i <= Light.getChCount(); i++) {
             persistbr[i] = last.parseInt();
@@ -1343,37 +1212,37 @@ void ftable_ex(int fval) {  // function that contains and executes all the funct
     // ir code switch, select channels, brightness
     switch (fval) {
     case 1: {
-        sel = 1;
-        break;
-    }
-    case 2: {
-        sel = 2;
-        break;
-    }
-    case 3: {
-        sel = 3;
-        break;
-    }
-    case 4: {
-        sel = 4;
-        break;
-    }
-    case 5: {
-        sel = 0;
-        break;
-    }
-    case 6: {
-        sel++;
-        if (sel >= Light.getChCount()) {
-            sel = 0;
+            sel = 1;
+            break;
         }
-    }
+    case 2: {
+            sel = 2;
+            break;
+        }
+    case 3: {
+            sel = 3;
+            break;
+        }
+    case 4: {
+            sel = 4;
+            break;
+        }
+    case 5: {
+            sel = 0;
+            break;
+        }
+    case 6: {
+            sel++;
+            if (sel >= Light.getChCount()) {
+                sel = 0;
+            }
+        }
     case 7: {
-    }
+        }
     case 8: {
-    }
+        }
     case 9: {
-    }
+        }
     // case 10: {  // br +
     //     Serial.print(" irbru \n");
     //     TelnetPrint.print(" irbru \n");
@@ -1395,13 +1264,13 @@ void ftable_ex(int fval) {  // function that contains and executes all the funct
     //     break;
     // }
     case 12: {  // irmax
-        break;
-    }
+            break;
+        }
     case 13: {  // irmin
-        Serial.print(" irmin \n");
-        TelnetPrint.print(" irmin \n");
-        break;
-    }
+            Serial.print(" irmin \n");
+            TelnetPrint.print(" irmin \n");
+            break;
+        }
 
     // case irpon: {
     //     Serial.print(" irpon \n");                           //old kept as reference
@@ -1411,12 +1280,12 @@ void ftable_ex(int fval) {  // function that contains and executes all the funct
     // }
 
     case 101 ... 199: {  // diy shortcuts
-        diyload(fval % 100);
-        if (irhold == 1 && millis() - irtime >= 2500) {
-            diyedit(fval % 100);  // FINISH THIS !!!!!!!!!!!!!!!!
+            diyload(fval % 100);
+            if (irhold == 1 && millis() - irtime >= 2500) {
+                diyedit(fval % 100);  // FINISH THIS !!!!!!!!!!!!!!!!
+            }
+            break;
         }
-        break;
-    }
     }
 }
 
@@ -1453,69 +1322,69 @@ void userInputWatcher() {
         //     break;
         // }
         case 'n': {
-            //          noti(255, 20, 3);
-            //            notidiy();
-            break;
-        }
-        case 'm': {
-            //          noti(255, 20, 3);
-            for (int i = -1; i <= 10; i++) {
-                Serial.print("lastbr[");
-                TelnetPrint.print("lastbr[");
-                Serial.print(i);
-                TelnetPrint.print(i);
-                Serial.print("]= ");
-                TelnetPrint.print("]= ");
-                Serial.println(lastbr[i]);
-                TelnetPrint.println(lastbr[i]);
+                //          noti(255, 20, 3);
+                //            notidiy();
+                break;
             }
-            break;
-        }
+        case 'm': {
+                //          noti(255, 20, 3);
+                for (int i = -1; i <= 10; i++) {
+                    Serial.print("lastbr[");
+                    TelnetPrint.print("lastbr[");
+                    Serial.print(i);
+                    TelnetPrint.print(i);
+                    Serial.print("]= ");
+                    TelnetPrint.print("]= ");
+                    Serial.println(lastbr[i]);
+                    TelnetPrint.println(lastbr[i]);
+                }
+                break;
+            }
         case '?': {
-            // for (int i = 0; i <= winset; i++) {
-            //    // Serial.print(currentset[i]);
-            // TelnetPrint.print(currentset[i]);
-            //    // Serial.print("\\");
-            // TelnetPrint.print("\\");
-            // }
-            break;
-        }
+                // for (int i = 0; i <= winset; i++) {
+                //    // Serial.print(currentset[i]);
+                // TelnetPrint.print(currentset[i]);
+                //    // Serial.print("\\");
+                // TelnetPrint.print("\\");
+                // }
+                break;
+            }
         case 'f': {
 
-            break;
-        }
+                break;
+            }
         case '1': {
-            diyload(1);
-            break;
-        }
+                diyload(1);
+                break;
+            }
         case '2': {
-            diyload(2);
-            break;
-        }
+                diyload(2);
+                break;
+            }
         case '3': {
-            diyload(3);
-            break;
-        }
+                diyload(3);
+                break;
+            }
         case '4': {
-            diyload(4);
-            break;
-        }
+                diyload(4);
+                break;
+            }
         case '5': {
-            diyload(5);
-            break;
-        }
+                diyload(5);
+                break;
+            }
         case '6': {
-            diyload(6);
-            break;
-        }
+                diyload(6);
+                break;
+            }
         case '7': {
-            diyload(7);
-            break;
-        }
+                diyload(7);
+                break;
+            }
         case '0': {
-            diyload(0);
-            break;
-        }
+                diyload(0);
+                break;
+            }
         }
     }
     // ir interface
