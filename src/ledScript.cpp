@@ -4,15 +4,12 @@
 #include "light.h"
 
 // External dependencies from main.cpp
-//extern int chnr;
-//extern int targetbr[6];
-//extern double nms;
 extern Task tScriptR;
 
 // Initialize the pointer to null
 scriptinfo* activeScript = nullptr;
 
-int scriptEnd() {
+int scriptEnd(bool cleanend) {
     if (!activeScript) {
         return 0;       //nothing to do but it's also not an err
     };
@@ -25,8 +22,10 @@ int scriptEnd() {
     }
 
     // Restore brightness from the script's internal saved state
-    for (int i = 0; i < Light.getChCount(); i++) {
-        Light.setBriSingle(i, activeScript->savedbr[i]);
+    if (cleanend){
+        for (int i = 0; i < Light.getChCount(); i++) {
+            Light.setBriSingle(i, activeScript->savedbr[i]);
+        }
     }
 
     // free up memory
@@ -37,7 +36,7 @@ int scriptEnd() {
     return 0;
 }
 
-int scriptBegin(String path) {
+int scriptBegin(String path, bool clean) {
 
     if(!SPIFFS.exists(path)) {
         ////TelnetPrint.println("Script file not found");
@@ -45,16 +44,16 @@ int scriptBegin(String path) {
     }
 
     // If a script is already running, clean it up first
-    tScriptR.disable();
+    //tScriptR.disable();
 
-    if(activeScript) {
-        scriptEnd();
-    }
+    //if(activeScript) {
+        scriptEnd(clean);
+    //}
 
     // Dynamically allocate memory for the new script
     activeScript = new scriptinfo();
     activeScript->path = path;
-    //TelnetPrint.println("Script begin reading metadata for: " + path);
+//    TelnetPrint.println("Script begin reading metadata for: " + path);
 
     // Save the current brightness
     activeScript->savedbr = new int[Light.getChCount()];
@@ -85,7 +84,7 @@ void scriptRunner() {
     }
 
     String line = activeScript->file.readStringUntil('\n');
-    //TelnetPrint.println(line);
+ //   TelnetPrint.println(line);
 
     switch (line[0]) {
     case 'F':

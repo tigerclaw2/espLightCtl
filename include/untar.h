@@ -16,7 +16,7 @@
 //#define TAR_MKDIR
 
 // Unomment to suppress output extracting process messages to Serial
-//#define TAR_SILENT
+#define TAR_SILENT
 
 // Comment to remove callback support
 #define TAR_CALLBACK

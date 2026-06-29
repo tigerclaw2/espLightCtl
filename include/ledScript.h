@@ -17,8 +17,8 @@ struct scriptinfo {
 
 extern scriptinfo* activeScript;
 
-int scriptBegin(String path);
-int scriptEnd();
+int scriptBegin(String path, bool clean=true);
+int scriptEnd(bool cleanend=true);
 void scriptRunner();
 
 #endif // LED_SCRIPT_H

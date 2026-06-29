@@ -18,15 +18,56 @@ void notifade(int ldiy, int tick) {
 }
 
 
-void LightController::addCh(int id, int pin, int calib) {
-    Channel ch;
-    ch.id = id;
-    ch.pin = pin;
-    ch.calib = calib;
-    // if(ch.id > -1){
-    //     pinMode(ch.id, OUTPUT);
-    // }
-    channels.push_back(ch);
+bool LightController::addCh(uint8_t id, uint8_t pin, uint8_t calib, bool highdef) {
+    if (pin > -1 && (pin < 6 || (pin > 11 && pin <= NUM_DIGITAL_PINS))) {
+        Channel ch;
+        ch.id = id;
+        ch.pin = pin;
+        ch.calib = calib;
+        if (highdef) {
+            ch.currentbr=255;
+        }
+        
+        pinMode(ch.id, OUTPUT);
+        
+        channels.push_back(ch);
+        return 0;
+    }
+    return 1;
+}
+
+bool LightController::begin(bool highdef) {
+    if(highdef) {
+    channels = { Channel{0, 255, 0, 255, 0, 0} };
+    } else {
+    channels = { Channel{0, 255, 0, 1, 0, 1} }; //1 as currentbr will effectively force a refresh since it is different than target
+    }
+    return 0;
+}
+void LightController::end(bool block) {
+    // Kill the background fader task immediately
+    tFader.disable();
+
+    if(block){
+        channels[0].targetbr=0;
+        while (channels[0].currentbr != 0) {
+            channels[0].currentbr--;
+            awrite();
+            delay(8);
+        }
+
+    }
+
+    for (size_t i = 1; i < channels.size(); i++) {
+        analogWrite(channels[i].pin, 0); 
+    }
+    channels.clear(); 
+    std::vector<Channel>().swap(channels); 
+
+    // Reset internal state variables to default
+    fadeTotalSteps = 0;
+    fadeCurrentStep = 0;
+    nms = 1000;
 }
 
 size_t LightController::getChCount() const {
@@ -49,7 +90,7 @@ void LightController::getBri(int* outValues, size_t maxSize) const {
     }
 }
 
-int LightController::getBriSingle(int id) const {
+uint8_t LightController::getBriSingle(int id) const {
     for (const auto& ch : channels) {
         if (ch.id == id) return ch.targetbr;
     }
@@ -67,7 +108,9 @@ void LightController::setBriSingle(int id, int value) {
 }
 
 void LightController::setFadeSpeed(double speed) {
-    nms = speed;
+    if(speed > 249){
+        nms = speed;
+    }
 }
 
 void LightController::recalculateFade() {
@@ -134,7 +177,6 @@ void LightController::fader() {
 }
 
 void LightController::awrite(int mode) {
-    analogWriteResolution(anw);
 
     // Safety check in case we fire awrite before adding channels
     if (channels.empty()) return;
@@ -143,8 +185,10 @@ void LightController::awrite(int mode) {
 
     // Loop starting from 1 since 0 is the virtual general brightness channel
     for (size_t i = 1; i < channels.size(); i++) {
-        // EXACT math you requested, dynamically applied to the hardware pins
-        analogWrite(channels[i].pin, map(map(channels[i].currentbr, 0, 256, 0, channels[i].calib), 0, 256, 0, masterCurrent));
+        //since max range is 2^16 we can now simply multiply each channel with the master as both are 8bit
+        analogWrite(channels[i].pin, (((channels[i].currentbr * channels[i].calib) / 255) * masterCurrent) >> 1);
+        //analogWrite(channels[i].pin, map(channels[i].currentbr, 0, 255, 0, channels[i].calib) * masterCurrent);
+        //analogWrite(channels[i].pin, map(map(channels[i].currentbr, 0, 256, 0, channels[i].calib), 0, 256, 0, masterCurrent));
     }
 }
 

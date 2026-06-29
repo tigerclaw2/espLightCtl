@@ -9,19 +9,19 @@
 extern int atx;
 extern int anw;
 
-// We bundle all the variables that used to be parallel arrays into a single Channel struct
 struct Channel {
-    int id;
-    int pin;
-    int calib;
-    int currentbr = 0;
-    int targetbr = 0;
-    int startbr = 0;
+    uint8_t id;
+    uint8_t pin;
+    uint8_t calib;
+    uint8_t currentbr = 0;
+    uint8_t targetbr = 0;
+    uint8_t startbr = 0;
 };
 
 class LightController {
     private:
-        // A single dynamic vector holding all our channel data
+
+        //std::vector<Channel> channels = { Channel{0, -1, 0, 0, 0, 0} };   //this now supposedly initializes the master automatically.
         std::vector<Channel> channels;
 
         long fadeTotalSteps = 0;
@@ -34,8 +34,9 @@ class LightController {
         LightController() = default;
 
         // --- Channel Management ---
-        // Make sure you add channel 0 first as your virtual brightness channel!
-        void addCh(int id, int pin, int calib);
+        bool addCh(uint8_t id, uint8_t pin, uint8_t calib, bool highdef=false);
+        bool begin(bool highdef=false);
+        void end(bool block=true);
         size_t getChCount() const;
 
         // --- Setters & Getters (Standard C-Array Approach) ---
@@ -52,7 +53,7 @@ class LightController {
             setBri(values, sizeof...(args));
         }
 
-        int getBriSingle(int id) const;
+        uint8_t getBriSingle(int id) const;
         void setBriSingle(int id, int value);
 
         void setFadeSpeed(double speed);
@@ -65,8 +66,6 @@ class LightController {
 
 extern LightController Light;
 
-// --- Legacy Wrappers ---
-//void lightWatcher();
 void faderCallback();
 void awrite(int mode = 0);
 void notifade(int ldiy = 9, int tick = 20);

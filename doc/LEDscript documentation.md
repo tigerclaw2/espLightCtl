@@ -1,4 +1,4 @@
-LEDSCRIPT documentation v0.2.1 [Work in progress]
+LEDSCRIPT documentation v0.3 [Work in progress]
 
 The behavior presented below may not be fully implemented or may change at any time!
 
@@ -12,15 +12,15 @@ point onwards. The value can be changed multiple times during the execution
 
 S<int><n int> (explicit set) sets the light to an explicit value in one instruction.
 This is the equivalent of calling C for each channel
-This function expects n+1 ints as parameters, the first int in range 0-1024 and the
-last n ints in range 0-255. The last n ints represent the exact value each channel will
+This function expects n+1 ints as parameters, all of them in range 0-255. 
+The last n ints represent the exact value each channel will
 be set to, the first one being ch0 (general brightness)
 Examples:
 ```
 N3;
-S1024,0,0;    		// Sets channels 1,2,3 to 0 and brightness to max
-S256,128,128,0; 	// Sets channels 1 and 2 to 50% and brightness to about 25%
-S1024,255,255,255;	// Turns on all channels, full brightness
+S255,0,0;    		// Sets channels 1,2,3 to 0 and brightness to max
+S64,128,128,0; 	    // Sets channels 1 and 2 to 50% and brightness to about 25%
+S255,255,255,255;	// Turns on all channels, full brightness
 ```
 
 C<int>,<int> (channel set) sets the specified channel to a specified value
